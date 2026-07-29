@@ -257,9 +257,12 @@ def _execute_python_with_output(analyzer, code_path, test_cases, config=None):
     # Fallback to analyzer method (Loop Mode)
     for i, test_case in enumerate(test_cases):
         try:
-            input_str = str(test_case.get('input', ''))
+            # Normalize stdin the same way the analyzer's own program-mode paths
+            # do, so test cases authored with a literal "\n" behave identically
+            # across Python/C/Java instead of feeding the program raw backslashes.
+            input_str = analyzer._prepare_stdin(test_case.get('input', ''))
             expected = str(test_case.get('expected_output', '')).strip()
-            
+
             # Run the test case
             ec, out, err, duration = analyzer._run_python_test_case(
                 Path(code_path), 
@@ -312,7 +315,8 @@ def _execute_python_simple(code_path, test_cases):
     import subprocess
     import tempfile
     import os
-    
+    from dynamic_analyzer import DynamicAnalyzer
+
     results = []
     
     # Read the code
@@ -321,7 +325,10 @@ def _execute_python_simple(code_path, test_cases):
     
     for test_case in test_cases:
         try:
-            input_str = str(test_case.get('input', ''))
+            # Normalize stdin the same way the analyzer's own program-mode paths
+            # do, so test cases authored with a literal "\n" behave identically
+            # across Python/C/Java instead of feeding the program raw backslashes.
+            input_str = DynamicAnalyzer._prepare_stdin(test_case.get('input', ''))
             expected = str(test_case.get('expected_output', '')).strip()
             
             # Create a temporary script that includes the code and handles input
@@ -431,10 +438,18 @@ def _execute_java_with_output(analyzer, code_path, test_cases):
     """Execute Java code and capture all outputs"""
     # For now, use the original dynamic analyzer for Java
     # We could implement output capture here if needed
+    # `code` is required so the analyzer can detect the public class name —
+    # the temp file's stem is a random "tmpXXXX" that would never match it.
+    try:
+        java_source = Path(code_path).read_text(encoding='utf-8', errors='ignore')
+    except Exception:
+        java_source = ''
+
     submission_data = {
         'student_id': 'temp_execution',
         'code_path': code_path,
         'language': 'java',
+        'code': java_source,
         'config': {
             'language': 'java',
             'test_cases': _format_test_cases_for_analyzer(test_cases),

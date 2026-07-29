@@ -155,6 +155,34 @@ class DynamicAnalyzer:
         # strings
         return str(ca).strip() == str(ce).strip()
 
+    @staticmethod
+    def _prepare_stdin(input_raw) -> str:
+        """Normalize a test case's `input` into the text piped to the program's stdin.
+
+        Test-case inputs are authored by hand in the UI and by JSON import, so
+        multi-line input frequently arrives as the two characters backslash-n
+        rather than a real newline. Feeding that through verbatim makes
+        scanf/Scanner read garbage and silently produce a wrong answer, which
+        looks to a student like their correct code failing. Convert the common
+        literal escapes, and guarantee a trailing newline so the last value is
+        terminated (scanf on an unterminated final token can block/misparse).
+        """
+        if isinstance(input_raw, (list, dict)):
+            text = json.dumps(input_raw)
+        else:
+            text = str(input_raw or "")
+
+        # Only rewrite when there is no real newline already: if the author
+        # supplied genuine line breaks, a literal backslash-n alongside them is
+        # far more likely to be intentional data than a mis-escaped newline.
+        if "\n" not in text:
+            text = text.replace("\\r\\n", "\n").replace("\\n", "\n")
+        text = text.replace("\\t", "\t")
+
+        if text and not text.endswith("\n"):
+            text += "\n"
+        return text
+
     def _outputs_match(self, raw_actual, raw_expected) -> bool:
         """Single comparison entry point used by every language path.
 
@@ -842,7 +870,7 @@ sys.exit(1 if error_occurred else 0)
                 expected = test.get("expected_output", "")
                 expected_str = str(expected).strip()
 
-                input_str = json.dumps(input_raw) if isinstance(input_raw, (list, dict)) else str(input_raw)
+                input_str = self._prepare_stdin(input_raw)
 
                 # Put input
                 container.put_archive(CONTAINER_TEMP_DIR, self._create_tar_from_string(input_str, INPUT_FILE_NAME))
@@ -855,7 +883,17 @@ sys.exit(1 if error_occurred else 0)
                     results.append({"name": name, "status": "timeout", "error": err or "Timed out", "execution_time": duration})
                     continue
                 if ec != 0:
-                    results.append({"name": name, "status": "runtime_error", "error": err or "Runtime error", "execution_time": duration})
+                    # Keep whatever the program printed before it died — students
+                    # who exit non-zero (a `return 1`, or a crash after partial
+                    # output) otherwise see an empty result with no clue why.
+                    results.append({
+                        "name": name,
+                        "status": "runtime_error",
+                        "error": err or f"Program exited with code {ec}",
+                        "actual": out,
+                        "expected": expected_str,
+                        "execution_time": duration,
+                    })
                     continue
 
                 if self._outputs_match(out, expected_str):
@@ -928,7 +966,7 @@ sys.exit(1 if error_occurred else 0)
                 expected = test.get("expected_output", "")
                 expected_str = str(expected).strip()
 
-                input_str = json.dumps(input_raw) if isinstance(input_raw, (list, dict)) else str(input_raw)
+                input_str = self._prepare_stdin(input_raw)
 
                 container.put_archive(CONTAINER_TEMP_DIR, self._create_tar_from_string(input_str, INPUT_FILE_NAME))
                 input_target = f"{CONTAINER_TEMP_DIR}/{INPUT_FILE_NAME}"
@@ -940,7 +978,17 @@ sys.exit(1 if error_occurred else 0)
                     results.append({"name": name, "status": "timeout", "error": err or "Timed out", "execution_time": duration})
                     continue
                 if ec != 0:
-                    results.append({"name": name, "status": "runtime_error", "error": err or "Runtime error", "execution_time": duration})
+                    # Keep whatever the program printed before it died — students
+                    # who exit non-zero (a `return 1`, or a crash after partial
+                    # output) otherwise see an empty result with no clue why.
+                    results.append({
+                        "name": name,
+                        "status": "runtime_error",
+                        "error": err or f"Program exited with code {ec}",
+                        "actual": out,
+                        "expected": expected_str,
+                        "execution_time": duration,
+                    })
                     continue
 
                 if self._outputs_match(out, expected_str):
@@ -973,6 +1021,15 @@ sys.exit(1 if error_occurred else 0)
         run (Java requires the public class file to be named after the class)."""
         import re
         code = code or ""
+        # Callers don't always pass the source text (e.g. submissions/services.py
+        # builds submission dicts with only code_path). Read it ourselves rather
+        # than falling back to the file stem, which for a NamedTemporaryFile is a
+        # random name like "tmpxlpjkynt" and never matches `public class Main`.
+        if not code.strip():
+            try:
+                code = Path(code_path).read_text(encoding="utf-8", errors="ignore")
+            except Exception:
+                code = ""
         m = re.search(r'\bpublic\s+(?:final\s+|abstract\s+)?class\s+([A-Za-z_$][\w$]*)', code)
         if m:
             return m.group(1)
@@ -1070,7 +1127,7 @@ sys.exit(1 if error_occurred else 0)
 
                 # Input becomes text; for dict/list we JSON dump (works for both program stdin and function JSON)
                 try:
-                    input_str = json.dumps(input_data_raw) if isinstance(input_data_raw, (list, dict)) else str(input_data_raw)
+                    input_str = self._prepare_stdin(input_data_raw)
                 except Exception:
                     input_str = str(input_data_raw)
 
@@ -1082,7 +1139,17 @@ sys.exit(1 if error_occurred else 0)
                     results.append({"name": name, "status": "timeout", "error": err or "Timed out", "execution_time": duration})
                     continue
                 if ec != 0:
-                    results.append({"name": name, "status": "runtime_error", "error": err or "Runtime error", "execution_time": duration})
+                    # Keep whatever the program printed before it died — students
+                    # who exit non-zero (a `return 1`, or a crash after partial
+                    # output) otherwise see an empty result with no clue why.
+                    results.append({
+                        "name": name,
+                        "status": "runtime_error",
+                        "error": err or f"Program exited with code {ec}",
+                        "actual": out,
+                        "expected": expected_str,
+                        "execution_time": duration,
+                    })
                     continue
 
                 if self._outputs_match(out, expected_str):

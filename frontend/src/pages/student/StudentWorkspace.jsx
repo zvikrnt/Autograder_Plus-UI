@@ -528,6 +528,24 @@ const StudentWorkspace = () => {
         return () => clearInterval(autoSaveInterval);
     }, [assignment, timeSpent, isReadOnly]);
 
+    // Persist the in-progress code itself (debounced) — the timer autosave above
+    // only stores elapsed time. Without this, AssignmentProgress.current_code
+    // stays empty, so a reload loses the draft and the teacher's Live Monitor
+    // has no code to show while the student is actually working.
+    useEffect(() => {
+        if (isReadOnly) return;
+        const aqId = assignment?.questions?.[currentQuestionIndex]?.id;
+        if (!aqId || typeof code !== "string") return;
+
+        const handle = setTimeout(() => {
+            submissionService
+                .autosaveCode(aqId, code)
+                .catch((err) => console.warn("Code autosave failed:", err));
+        }, 2000);
+
+        return () => clearTimeout(handle);
+    }, [code, currentQuestionIndex, assignment, isReadOnly]);
+
     // --- Anti-Cheat Tracking (Tab/Window Switches & Fullscreen) ---
     useEffect(() => {
         if (isReadOnly || loading || !assignment || assignment.mode !== 'exam') return;

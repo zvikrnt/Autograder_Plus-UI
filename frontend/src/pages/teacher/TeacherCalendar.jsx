@@ -138,11 +138,11 @@ export default function TeacherCalendar() {
                                             </span>
 
                                             {/* Events List */}
-                                            <div className="flex flex-col gap-1 overflow-y-auto max-h-[80px]">
+                                            <div className="flex flex-col gap-1 overflow-y-auto max-h-[96px]">
                                                 {events.map((event, idx) => (
                                                     <div
                                                         key={idx}
-                                                        className={`text-xs px-1.5 py-0.5 rounded truncate border shadow-sm cursor-pointer
+                                                        className={`text-sm px-2 py-1 rounded truncate border shadow-sm cursor-pointer
                                                             ${event.type === 'Assignment' ? 'bg-indigo-100 text-indigo-700 border-indigo-200 hover:bg-indigo-200' :
                                                                 event.type === 'Quiz' ? 'bg-amber-100 text-amber-700 border-amber-200 hover:bg-amber-200' :
                                                                     event.type === 'Exam' ? 'bg-red-100 text-red-700 border-red-200 hover:bg-red-200' :
@@ -179,7 +179,7 @@ export default function TeacherCalendar() {
                                     .map(event => (
                                         <div key={event.id} className="flex gap-3 group">
                                             <div className="flex flex-col items-center min-w-[3rem] p-2 bg-indigo-50 rounded text-indigo-600">
-                                                <span className="text-xs font-bold uppercase">{event.date.toLocaleString('default', { month: 'short' })}</span>
+                                                <span className="text-sm font-bold uppercase">{event.date.toLocaleString('default', { month: 'short' })}</span>
                                                 <span className="text-xl font-bold leading-none">{event.date.getDate()}</span>
                                             </div>
                                             <div className="flex-1">
@@ -188,10 +188,10 @@ export default function TeacherCalendar() {
                                                         {event.title}
                                                     </h4>
                                                 </div>
-                                                <p className="text-xs text-gray-500 mt-0.5">{event.className}</p>
+                                                <p className="text-sm text-gray-500 mt-0.5">{event.className}</p>
                                                 <div className="flex items-center gap-1.5 mt-1.5">
                                                     <Clock className="w-3 h-3 text-gray-400" />
-                                                    <span className="text-xs text-gray-400">Due Date</span>
+                                                    <span className="text-sm text-gray-400">Due Date</span>
                                                 </div>
                                             </div>
                                         </div>

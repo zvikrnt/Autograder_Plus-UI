@@ -123,6 +123,15 @@ export const submissionService = {
     });
   },
 
+  // Persists the student's in-progress code so it survives a reload/disconnect
+  // and so teachers can watch it live from the Live Monitor.
+  autosaveCode: async (assignmentQuestionId, currentCode) => {
+    return await api.post('/submissions/progress/autosave/', {
+      assignment_question_id: assignmentQuestionId,
+      current_code: currentCode,
+    });
+  },
+
   getTimer: async (assignmentId, questionId, language = 'python') => {
     // For getTimer, we might pass assignment_id AND question_id (raw) if we don't have AQ ID,
     // OR we pass questionId as AQ ID.

@@ -202,11 +202,11 @@ export default function StudentCalendar() {
                                                 )}
                                             </span>
 
-                                            <div className="flex flex-col gap-1 overflow-y-auto max-h-[80px]">
+                                            <div className="flex flex-col gap-1 overflow-y-auto max-h-[96px]">
                                                 {dayEvents.map(event => (
                                                     <div
                                                         key={event.id}
-                                                        className={`text-xs px-1.5 py-0.5 rounded truncate border shadow-sm cursor-pointer ${pillStyle(event)}`}
+                                                        className={`text-sm px-2 py-1 rounded truncate border shadow-sm cursor-pointer ${pillStyle(event)}`}
                                                         title={`${event.title}${event.className ? ` - ${event.className}` : ''}${event.kind === 'submission' ? ' (Submitted)' : ''}`}
                                                     >
                                                         {event.kind === 'submission' ? (
@@ -241,7 +241,7 @@ export default function StudentCalendar() {
                                     getDueSoon().map(event => (
                                         <div key={event.id} className="flex gap-3 p-2 bg-red-50 rounded-lg border border-red-100">
                                             <div className="flex flex-col items-center min-w-[2.5rem] text-red-600">
-                                                <span className="text-xs font-bold uppercase">
+                                                <span className="text-sm font-bold uppercase">
                                                     {event.date.toLocaleString('default', { month: 'short' })}
                                                 </span>
                                                 <span className="text-lg font-bold leading-none">
@@ -252,10 +252,10 @@ export default function StudentCalendar() {
                                                 <h4 className="text-sm font-semibold text-gray-900 truncate">
                                                     {event.title}
                                                 </h4>
-                                                <p className="text-xs text-gray-500 truncate">{event.className}</p>
+                                                <p className="text-sm text-gray-500 truncate">{event.className}</p>
                                                 <div className="flex items-center gap-1 mt-1">
                                                     <Clock className="w-3 h-3 text-gray-400" />
-                                                    <span className="text-xs text-gray-400">11:59 PM</span>
+                                                    <span className="text-sm text-gray-400">11:59 PM</span>
                                                 </div>
                                             </div>
                                         </div>
@@ -279,7 +279,7 @@ export default function StudentCalendar() {
                                 {getUpcomingAssignments().map(event => (
                                     <div key={event.id} className="flex gap-3 group">
                                         <div className="flex flex-col items-center min-w-[3rem] p-2 bg-blue-50 rounded text-blue-600">
-                                            <span className="text-xs font-bold uppercase">
+                                            <span className="text-sm font-bold uppercase">
                                                 {event.date.toLocaleString('default', { month: 'short' })}
                                             </span>
                                             <span className="text-xl font-bold leading-none">
@@ -290,10 +290,10 @@ export default function StudentCalendar() {
                                             <h4 className="text-sm font-semibold text-gray-900 line-clamp-1 group-hover:text-blue-600 transition-colors">
                                                 {event.title}
                                             </h4>
-                                            <p className="text-xs text-gray-500 mt-0.5">{event.className}</p>
+                                            <p className="text-sm text-gray-500 mt-0.5">{event.className}</p>
                                             <div className="flex items-center gap-1.5 mt-1.5">
                                                 <Clock className="w-3 h-3 text-gray-400" />
-                                                <span className="text-xs text-gray-400">11:59 PM</span>
+                                                <span className="text-sm text-gray-400">11:59 PM</span>
                                             </div>
                                         </div>
                                     </div>
