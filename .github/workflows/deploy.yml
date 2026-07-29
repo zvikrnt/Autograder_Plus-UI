@@ -3,6 +3,12 @@ name: Build, Test, and Deploy
 on:
   push:
     branches: [main]
+  workflow_dispatch:
+    inputs:
+      deploy:
+        description: 'Deploy to the VM (needs a self-hosted runner registered)'
+        type: boolean
+        default: true
 
 jobs:
   lint-and-test:
@@ -106,6 +112,13 @@ jobs:
 
   deploy:
     needs: build-and-push
+    # Manual-only for now. This job requires a self-hosted runner registered on
+    # the target VM; until one exists, running it on every push just leaves a
+    # job queued for hours until it times out. Trigger it deliberately from
+    # Actions → "Build, Test, and Deploy" → "Run workflow" once the VM and its
+    # runner are ready. To go back to deploying automatically on every push to
+    # main, delete this `if:` line.
+    if: github.event_name == 'workflow_dispatch' && inputs.deploy
     # Self-hosted runner installed directly on the target VM. Chosen over an
     # SSH-from-hosted-runner approach because a college-cluster VM behind a
     # campus firewall is very unlikely to accept inbound connections from
