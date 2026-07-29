@@ -1,0 +1,149 @@
+name: Build, Test, and Deploy
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  lint-and-test:
+    runs-on: ubuntu-latest   # GitHub-hosted is fine here — no VM access needed
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: test_autograder
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with: { python-version: '3.11' }
+
+      - name: Install backend deps
+        working-directory: backend
+        run: pip install -r requirements.txt
+
+      # NOTE: only backend/gamification/ has real django.test.TestCase suites
+      # today (test_api.py, test_admin.py, test_integration.py,
+      # test_properties.py, test_websockets.py). The many other backend/
+      # test_*.py / scripts/*.py files are ad hoc manual debug scripts that
+      # expect a live, manually-seeded DB — they are NOT CI-safe and are
+      # deliberately not run here.
+      - name: Run Django test suite (gamification)
+        working-directory: backend
+        env:
+          POSTGRES_DB: test_autograder
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_HOST: localhost
+          POSTGRES_PORT: 5432
+          SECRET_KEY: ci-only-not-secret
+          DEBUG: "False"
+          REDIS_URL: redis://localhost:6379/1
+          CELERY_BROKER_URL: redis://localhost:6379/0
+        run: python manage.py test gamification
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: frontend/.nvmrc
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install frontend deps
+        working-directory: frontend
+        run: npm ci
+
+      - name: Lint frontend
+        working-directory: frontend
+        run: npm run lint
+
+      - name: Build frontend (compile check)
+        working-directory: frontend
+        run: npm run build
+
+  build-and-push:
+    needs: lint-and-test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      tag: ${{ steps.meta.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - id: meta
+        run: echo "tag=sha-${GITHUB_SHA::12}" >> "$GITHUB_OUTPUT"
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build & push backend image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./backend
+          push: true
+          tags: |
+            ghcr.io/zvikrnt/autograder-backend:${{ steps.meta.outputs.tag }}
+            ghcr.io/zvikrnt/autograder-backend:latest
+          build-args: |
+            DOCKER_GID=${{ vars.HOST_DOCKER_GID }}
+
+      - name: Build & push frontend image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: frontend/Dockerfile
+          push: true
+          tags: |
+            ghcr.io/zvikrnt/autograder-frontend:${{ steps.meta.outputs.tag }}
+            ghcr.io/zvikrnt/autograder-frontend:latest
+
+  deploy:
+    needs: build-and-push
+    # Self-hosted runner installed directly on the target VM. Chosen over an
+    # SSH-from-hosted-runner approach because a college-cluster VM behind a
+    # campus firewall is very unlikely to accept inbound connections from
+    # GitHub's (wide, changing) hosted-runner IP ranges. A self-hosted
+    # runner makes an outbound-only long-poll connection to GitHub instead,
+    # so no inbound firewall change is needed, and this job runs directly
+    # against the local Docker daemon with no SSH hop.
+    #
+    # Trade-off: this workflow executes with the runner's permissions
+    # directly on the production VM. Treat .github/workflows/*.yml with the
+    # same review rigor as production code (require PR review to merge to
+    # main, avoid untrusted third-party Actions).
+    runs-on: self-hosted
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Pull new images and deploy
+        run: |
+          echo "IMAGE_TAG=${{ needs.build-and-push.outputs.tag }}" > .env.deploy
+          docker compose -f docker-compose.prod.yml --env-file backend/.env --env-file .env.deploy pull
+          docker compose -f docker-compose.prod.yml --env-file backend/.env --env-file .env.deploy \
+            up -d --scale backend=3 --remove-orphans
+
+      - name: Run migrations
+        run: docker compose -f docker-compose.prod.yml exec -T backend python manage.py migrate --noinput
+
+      - name: Record deployed tag for rollback
+        run: |
+          mkdir -p /opt/autograder/deployed_tags
+          echo "${{ needs.build-and-push.outputs.tag }}" > "/opt/autograder/deployed_tags/$(date +%Y%m%d-%H%M%S).txt"
+
+      - name: Smoke test
+        run: curl -sf https://autograder.iitbh/api/health/ || (echo "Smoke test failed" && exit 1)

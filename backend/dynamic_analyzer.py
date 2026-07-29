@@ -595,6 +595,7 @@ if __name__ == "__main__":
                 # volumes=volume_mount, # Removed to allow code modification (prepend structures)
                 working_dir=CONTAINER_WORKING_DIR,
                 mem_limit="256m",
+                nano_cpus=500_000_000,  # cap at 0.5 CPU so a submission burst can't starve the platform tier
                 network_disabled=True,
                 pids_limit=100,
                 remove=True,
@@ -671,6 +672,7 @@ if __name__ == "__main__":
                 volumes=volume_mount,
                 working_dir=CONTAINER_WORKING_DIR,
                 mem_limit="256m",
+                nano_cpus=500_000_000,  # cap at 0.5 CPU so a submission burst can't starve the platform tier
                 network_disabled=True,
                 pids_limit=1024,
                 remove=True,  # Auto-remove container when it stops
@@ -811,6 +813,7 @@ sys.exit(1 if error_occurred else 0)
                 volumes=volume_mount,
                 working_dir=CONTAINER_WORKING_DIR,
                 mem_limit="256m",
+                nano_cpus=500_000_000,  # cap at 0.5 CPU so a submission burst can't starve the platform tier
                 network_disabled=True,
                 pids_limit=1024,
                 remove=True,  # Auto-remove container when it stops
@@ -891,6 +894,7 @@ sys.exit(1 if error_occurred else 0)
                 volumes=volume_mount,
                 working_dir=CONTAINER_WORKING_DIR,
                 mem_limit="256m",
+                nano_cpus=500_000_000,  # cap at 0.5 CPU so a submission burst can't starve the platform tier
                 network_disabled=True,
                 pids_limit=1024,
                 remove=True,  # Auto-remove container when it stops

@@ -163,6 +163,10 @@ backend/all_users.txt
 backend/celerybeat-schedule*
 backend/*.bak-*
 
+# Local backup staging (backup.sh output) and CI-generated deploy env
+/backups/
+.env.deploy
+
 # Ad hoc debug/investigation scripts and session notes (not app code)
 backend/scripts/investigate_*.py
 backend/scripts/fix_*.py

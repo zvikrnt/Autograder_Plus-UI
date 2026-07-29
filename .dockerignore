@@ -1,0 +1,14 @@
+.git
+**/node_modules
+**/venv
+**/__pycache__
+**/*.pyc
+frontend/dist
+backend/staticfiles
+backend/media
+backend/assignments_data
+mars
+Autograder_plus
+*.md
+.env
+**/.env

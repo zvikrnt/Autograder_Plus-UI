@@ -1,0 +1,12 @@
+[Unit]
+Description=Autograder nightly backup (Postgres + MinIO + secrets) to Google Drive
+After=docker.service network-online.target
+Requires=docker.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=autograder-ops
+WorkingDirectory=/opt/autograder
+ExecStart=/opt/autograder/scripts/backup.sh
+TimeoutStartSec=3600

@@ -1,0 +1,180 @@
+
+x-backend-env: &backend-env
+  env_file:
+    - ./backend/.env
+
+x-backend-build: &backend-build
+  context: ./backend
+  dockerfile: Dockerfile
+  args:
+    DOCKER_GID: "${HOST_DOCKER_GID:-999}"
+
+x-backend-volumes: &backend-volumes
+  volumes:
+    - /var/run/docker.sock:/var/run/docker.sock
+    - backend_media:/app/media
+    - assignments_data:/app/assignments_data
+
+services:
+  db:
+    image: postgres:16
+    container_name: autograder_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks: [backend_net]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    deploy:
+      resources:
+        limits: { cpus: '2', memory: 4g }
+    # No host port published in production — only reachable from other
+    # containers on backend_net (dev-only convenience port 5400 is not
+    # replicated here).
+
+  redis:
+    image: redis:7
+    container_name: autograder_redis
+    restart: unless-stopped
+    volumes:
+      - redis_data:/data
+    networks: [backend_net]
+    deploy:
+      resources:
+        limits: { cpus: '1', memory: 1g }
+
+  minio:
+    image: minio/minio
+    container_name: autograder_minio
+    restart: unless-stopped
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+    command: server /data --console-address ":9001"
+    volumes:
+      - minio_data:/data
+    networks: [backend_net]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+    deploy:
+      resources:
+        limits: { cpus: '1', memory: 2g }
+
+  backend:
+    build: *backend-build
+    image: ghcr.io/zvikrnt/autograder-backend:${IMAGE_TAG:-latest}
+    restart: unless-stopped
+    <<: [*backend-env, *backend-volumes]
+    networks: [backend_net, edge_net]
+    depends_on:
+      db: { condition: service_healthy }
+      redis: { condition: service_started }
+      minio: { condition: service_healthy }
+    deploy:
+      resources:
+        limits: { cpus: '1.5', memory: 1.5g }
+      # NOTE: deploy.replicas is NOT honored by plain `docker compose up`
+      # outside Swarm mode. Actual horizontal scaling is done via the
+      # `--scale backend=N` CLI flag (see README/CI deploy step). Kept
+      # unset here deliberately so nobody edits this file expecting it to
+      # take effect.
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/health/"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  celery-worker:
+    build: *backend-build
+    image: ghcr.io/zvikrnt/autograder-backend:${IMAGE_TAG:-latest}
+    restart: unless-stopped
+    command: celery -A autograder worker -l info --concurrency=4 --queues=celery --hostname=general@%h
+    <<: [*backend-env, *backend-volumes]
+    networks: [backend_net]
+    depends_on: [db, redis, minio]
+    deploy:
+      resources:
+        limits: { cpus: '4', memory: 3g }
+
+  celery-ai-worker:
+    build: *backend-build
+    image: ghcr.io/zvikrnt/autograder-backend:${IMAGE_TAG:-latest}
+    restart: unless-stopped
+    command: celery -A autograder worker -l info --concurrency=1 --queues=ai_analysis --hostname=ai@%h
+    <<: [*backend-env, *backend-volumes]
+    networks: [backend_net]
+    depends_on: [db, redis, minio]
+    deploy:
+      resources:
+        limits: { cpus: '2', memory: 3g }
+    # GPU intentionally NOT provisioned — no code path currently uses it.
+    # concurrency=1 carried over from the current dev setup (originally a
+    # GPU-safety constraint); revisit upward if AI analysis proves slow
+    # under pure-CPU execution.
+
+  celery-beat:
+    build: *backend-build
+    image: ghcr.io/zvikrnt/autograder-backend:${IMAGE_TAG:-latest}
+    restart: unless-stopped
+    command: celery -A autograder beat -l info --schedule=/app/beat/celerybeat-schedule
+    <<: [*backend-env]
+    volumes:
+      - celery_beat_schedule:/app/beat
+    networks: [backend_net]
+    depends_on: [db, redis]
+    deploy:
+      resources:
+        limits: { cpus: '0.25', memory: 256m }
+
+  frontend:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+    image: ghcr.io/zvikrnt/autograder-frontend:${IMAGE_TAG:-latest}
+    restart: unless-stopped
+    networks: [edge_net]
+    deploy:
+      resources:
+        limits: { cpus: '0.5', memory: 256m }
+
+  nginx:
+    image: nginx:1.27-alpine
+    container_name: autograder_nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/conf.d:/etc/nginx/conf.d:ro
+      - /etc/autograder/tls:/etc/nginx/tls:ro   # college-supplied cert+key, read-only
+    networks: [edge_net]
+    depends_on: [backend, frontend]
+    deploy:
+      resources:
+        limits: { cpus: '2', memory: 512m }
+
+networks:
+  backend_net:
+    driver: bridge
+    internal: true   # db/redis/minio/celery unreachable from outside the VM
+  edge_net:
+    driver: bridge   # nginx <-> backend <-> frontend only
+
+volumes:
+  postgres_data:
+  redis_data:
+  minio_data:
+  backend_media:
+  assignments_data:
+  celery_beat_schedule:

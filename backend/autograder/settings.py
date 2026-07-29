@@ -20,6 +20,24 @@ SECRET_KEY = config('SECRET_KEY', default='django-insecure-change-this-in-produc
 DEBUG = config('DEBUG', default=True, cast=bool)
 ALLOWED_HOSTS = config('ALLOWED_HOSTS', default='*', cast=lambda v: [s.strip() for s in v.split(',')])
 
+# Trust the reverse proxy's X-Forwarded-Proto so Django knows the original
+# request was HTTPS (needed once TLS terminates at Nginx in front of Daphne).
+SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+
+CSRF_TRUSTED_ORIGINS = config(
+    'CSRF_TRUSTED_ORIGINS', default='',
+    cast=lambda v: [s.strip() for s in v.split(',') if s.strip()]
+)
+
+if not DEBUG:
+    SECURE_SSL_REDIRECT = config('SECURE_SSL_REDIRECT', default=True, cast=bool)
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
+    SECURE_HSTS_SECONDS = config('SECURE_HSTS_SECONDS', default=31536000, cast=int)
+    SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+    SECURE_HSTS_PRELOAD = True
+    SECURE_CONTENT_TYPE_NOSNIFF = True
+
 
 # Application definition
 
@@ -110,6 +128,8 @@ DATABASES = {
         'PASSWORD': config('POSTGRES_PASSWORD', default='password'),
         'HOST': config('POSTGRES_HOST', default='localhost'),
         'PORT': config('POSTGRES_PORT', default='5400'),
+        'CONN_MAX_AGE': config('DB_CONN_MAX_AGE', default=60, cast=int),
+        'OPTIONS': {'connect_timeout': 10},
     }
 }
 
@@ -214,15 +234,14 @@ SIMPLE_JWT = {
 }
 
 # CORS Settings
-# CORS_ALLOWED_ORIGINS = [
-#     "http://localhost:5173",
-#     "http://localhost:5174", 
-#     "http://localhost:5175",
-#     "http://localhost:3000",
-# ]
-
-# Alternative: Allow all origins for development (less secure but works)
-CORS_ALLOW_ALL_ORIGINS = True
+# Defaults to permissive (matches prior dev-only behavior) but is now
+# env-gated: production sets CORS_ALLOW_ALL_ORIGINS=False and
+# CORS_ALLOWED_ORIGINS=https://autograder.iitbh in backend/.env.
+CORS_ALLOW_ALL_ORIGINS = config('CORS_ALLOW_ALL_ORIGINS', default=True, cast=bool)
+CORS_ALLOWED_ORIGINS = config(
+    'CORS_ALLOWED_ORIGINS', default='',
+    cast=lambda v: [s.strip() for s in v.split(',') if s.strip()]
+)
 
 CORS_ALLOW_CREDENTIALS = True
 CORS_ALLOWED_HEADERS = [

@@ -7,6 +7,11 @@ from django.conf import settings
 from django.conf.urls.static import static
 from django.http import JsonResponse
 
+def health(request):
+    """Liveness probe for Docker/CI. No auth, no DB/Redis dependency."""
+    return JsonResponse({'status': 'ok'})
+
+
 def api_root(request):
     """API root endpoint"""
     return JsonResponse({
@@ -40,6 +45,7 @@ def api_root(request):
 
 urlpatterns = [
     path('', api_root, name='api-root'),
+    path('api/health/', health, name='health'),
     path('admin/', admin.site.urls),
     path('api/auth/', include('auth_urls')),
     path('api/users/', include('users.urls')),
