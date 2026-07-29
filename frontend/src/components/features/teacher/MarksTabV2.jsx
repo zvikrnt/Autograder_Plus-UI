@@ -160,14 +160,14 @@ export default function MarksTabV2() {
 
             {/* Main Gradebook Table */}
             <div className="border border-gray-200 rounded-xl overflow-hidden bg-white shadow-sm">
-                <div className="overflow-x-auto">
-                    <Table>
-                        <TableHeader>
+                <div className="overflow-x-auto w-full">
+                    <Table className="w-full min-w-max">
+                        <TableHeader className="sticky top-0 z-30 bg-gray-50/50">
                             <TableRow className="bg-gray-50/50 hover:bg-gray-50/50 border-b border-gray-200">
-                                <TableHead className="w-[250px] pl-6 py-4 font-semibold text-gray-600">Student</TableHead>
-                                <TableHead className="w-[100px] text-center font-semibold text-gray-600">Overall</TableHead>
+                                <TableHead className="w-[200px] max-w-[200px] pl-6 py-4 font-semibold text-gray-600 truncate sticky left-0 bg-gray-50 z-20">Student</TableHead>
+                                <TableHead className="w-[80px] text-center font-semibold text-gray-600">Overall</TableHead>
                                 {assignments.map(assign => (
-                                    <TableHead key={assign.id} className="text-center min-w-[120px] py-4">
+                                    <TableHead key={assign.id} className="text-center min-w-[100px] py-4">
                                         <div className="flex flex-col items-center gap-1 group cursor-pointer">
                                             <span className="font-medium text-gray-700 group-hover:text-indigo-600 transition-colors line-clamp-1 max-w-[120px]" title={assign.title}>{assign.title}</span>
                                             <span className="text-[10px] bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded border border-gray-200">
@@ -185,7 +185,7 @@ export default function MarksTabV2() {
                                     className="cursor-pointer hover:bg-indigo-50/30 transition-colors group"
                                     onClick={() => handleStudentClick(student)}
                                 >
-                                    <TableCell className="pl-6 py-3 font-medium border-r border-transparent group-hover:border-indigo-100">
+                                    <TableCell className="pl-6 py-3 font-medium border-r border-transparent group-hover:border-indigo-100 sticky left-0 bg-white z-10">
                                         <div className="flex items-center gap-3">
                                             <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-gray-600 text-xs font-bold border border-gray-200">
                                                 {student.name.charAt(0)}

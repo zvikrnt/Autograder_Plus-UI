@@ -12,6 +12,8 @@ from django.contrib.auth.tokens import default_token_generator
 from django.utils.http import urlsafe_base64_encode, urlsafe_base64_decode
 from django.utils.encoding import force_bytes, force_str
 from django.conf import settings
+from rest_framework.parsers import MultiPartParser, FormParser
+from django.core.files.storage import default_storage
 
 
 # Simple function-based view for testing
@@ -177,6 +179,38 @@ class UserViewSet(viewsets.ModelViewSet):
             serializer.save()
             return Response({'success': True, 'user': UserSerializer(request.user).data})
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    @action(detail=False, methods=['post'], permission_classes=[IsAuthenticated], parser_classes=[MultiPartParser, FormParser], url_path='avatar')
+    def upload_avatar(self, request):
+        """Upload user avatar"""
+        if 'avatar' not in request.FILES:
+            return Response({'message': 'No image provided'}, status=status.HTTP_400_BAD_REQUEST)
+
+        file_obj = request.FILES['avatar']
+
+        import os
+        ext = os.path.splitext(file_obj.name)[1]
+        if not ext:
+            ext = '.bin'
+
+        file_path = f'avatars/{request.user.id}_avatar{ext}'
+
+        try:
+            if default_storage.exists(file_path):
+                default_storage.delete(file_path)
+
+            file_name = default_storage.save(file_path, file_obj)
+            file_url = default_storage.url(file_name)
+
+            request.user.avatar_url = file_url
+            request.user.save()
+
+            return Response({'success': True, 'user': UserSerializer(request.user).data})
+        except Exception as e:
+            return Response(
+                {'message': f'Storage error: {str(e)}'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
 
     @action(detail=False, methods=['post'], permission_classes=[AllowAny])
     def request_password_reset(self, request):

@@ -46,7 +46,7 @@ const ResetPassword = () => {
     };
 
     return (
-        <div className="flex min-h-screen w-full bg-white">
+        <div className="flex min-h-screen w-full bg-white dark:bg-gray-800">
             {/* Left Side - Animation & Branding */}
             <div className="hidden lg:flex lg:w-1/2 relative bg-[#f9fafb] items-center justify-center overflow-hidden">
                 <div className="absolute top-8 left-8">
@@ -63,7 +63,7 @@ const ResetPassword = () => {
             </div>
 
             {/* Right Side - Form */}
-            <div className="w-full lg:w-1/2 flex items-center justify-center p-8 md:p-12 lg:p-24 bg-white">
+            <div className="w-full lg:w-1/2 flex items-center justify-center p-8 md:p-12 lg:p-24 bg-white dark:bg-gray-800">
                 <div className="w-full max-w-md space-y-8">
                     {!isSuccess ? (
                         <>
@@ -96,13 +96,13 @@ const ResetPassword = () => {
                                                 required
                                                 value={newPassword}
                                                 onChange={(e) => setNewPassword(e.target.value)}
-                                                className="block w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-50 shadow-sm transition-all duration-200 placeholder-gray-400 outline-none pr-10"
+                                                className="block w-full px-4 py-3 rounded-xl border border-gray-200 dark:border-gray-700 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-50 shadow-sm transition-all duration-200 placeholder-gray-400 dark:placeholder-gray-500 outline-none pr-10"
                                                 placeholder="Enter new password"
                                             />
                                             <button
                                                 type="button"
                                                 onClick={() => setShowPassword(!showPassword)}
-                                                className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600 transition-colors"
+                                                className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600 dark:hover:text-gray-400 transition-colors"
                                             >
                                                 {showPassword ? (
                                                     <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -130,7 +130,7 @@ const ResetPassword = () => {
                                             required
                                             value={confirmPassword}
                                             onChange={(e) => setConfirmPassword(e.target.value)}
-                                            className="block w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-50 shadow-sm transition-all duration-200 placeholder-gray-400 outline-none"
+                                            className="block w-full px-4 py-3 rounded-xl border border-gray-200 dark:border-gray-700 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-50 shadow-sm transition-all duration-200 placeholder-gray-400 dark:placeholder-gray-500 outline-none"
                                             placeholder="Confirm new password"
                                         />
                                     </div>

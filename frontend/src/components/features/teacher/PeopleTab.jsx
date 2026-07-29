@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Plus, UserPlus, MoreVertical, Mail, Trash2, Shield, GraduationCap, User } from "lucide-react";
+import { Plus, UserPlus, MoreVertical, Mail, Trash2, Shield, GraduationCap, User, Search } from "lucide-react";
 import { Button } from "../../ui/button";
 import { Input } from "../../ui/input";
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from "../../ui/dropdown-menu";
@@ -22,6 +22,7 @@ export default function PeopleTab({ classId }) {
     const [students, setStudents] = useState([]);
     const [teachers, setTeachers] = useState([]);
     const [tas, setTas] = useState([]);
+    const [filterText, setFilterText] = useState("");
     const [loading, setLoading] = useState(true);
     const [inviteLoading, setInviteLoading] = useState(false);
     const [inviteOpen, setInviteOpen] = useState(false);
@@ -175,6 +176,17 @@ export default function PeopleTab({ classId }) {
 
     return (
         <div className="max-w-5xl mx-auto space-y-10 pb-20">
+            <div className="flex justify-end">
+                <div className="relative w-full max-w-sm">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                    <Input
+                        placeholder="Search members..."
+                        className="pl-9"
+                        value={filterText}
+                        onChange={(e) => setFilterText(e.target.value)}
+                    />
+                </div>
+            </div>
 
             {/* Invite Dialog */}
             <Dialog open={inviteOpen} onOpenChange={setInviteOpen}>
@@ -229,7 +241,10 @@ export default function PeopleTab({ classId }) {
                     </h2>
                 </div>
                 <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-                    {teachers.map(renderMemberRow)}
+                    {teachers.filter(m => 
+                        m.name.toLowerCase().includes(filterText.toLowerCase()) ||
+                        m.email.toLowerCase().includes(filterText.toLowerCase())
+                    ).map(renderMemberRow)}
                 </div>
             </div>
 
@@ -248,12 +263,12 @@ export default function PeopleTab({ classId }) {
                     </Button>
                 </div>
                 <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-                    {tas.length === 0 ? (
+                    {tas.filter(m => m.name.toLowerCase().includes(filterText.toLowerCase()) || m.email.toLowerCase().includes(filterText.toLowerCase())).length === 0 ? (
                         <div className="p-8 text-center text-gray-500 bg-gray-50/50">
-                            No Teaching Assistants yet. Invite one to help manage the class.
+                            No Teaching Assistants match your search.
                         </div>
                     ) : (
-                        tas.map(renderMemberRow)
+                        tas.filter(m => m.name.toLowerCase().includes(filterText.toLowerCase()) || m.email.toLowerCase().includes(filterText.toLowerCase())).map(renderMemberRow)
                     )}
                 </div>
             </div>
@@ -278,7 +293,7 @@ export default function PeopleTab({ classId }) {
                         <div className="text-center py-12">
                             <p className="text-gray-500">Loading class roster...</p>
                         </div>
-                    ) : students.length === 0 ? (
+                    ) : students.filter(m => m.name.toLowerCase().includes(filterText.toLowerCase()) || m.email.toLowerCase().includes(filterText.toLowerCase())).length === 0 ? (
                         <div className="text-center py-12 bg-gray-50/50">
                             <div className="mb-3 flex justify-center">
                                 <div className="w-12 h-12 bg-indigo-50 rounded-full flex items-center justify-center text-indigo-400">

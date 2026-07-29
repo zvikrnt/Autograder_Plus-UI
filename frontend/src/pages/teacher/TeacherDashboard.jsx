@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { MoreVertical, Users, Loader2, AlertCircle, Pencil, Trash2, Archive, ArchiveRestore } from "lucide-react";
 import { Link } from "react-router-dom";
-import { motion } from "framer-motion";
+import { motion as Motion } from "framer-motion";
 
 import TeacherLayout from "../../components/layout/TeacherLayout";
 import { classService } from "../../services/classService";
@@ -35,13 +35,6 @@ const containerVariants = {
         }
     }
 };
-
-const itemVariants = {
-    hidden: { opacity: 0, y: 20 },
-    show: { opacity: 1, y: 0 }
-};
-
-
 
 export default function TeacherDashboard() {
     const [classes, setClasses] = useState([]);
@@ -134,7 +127,7 @@ export default function TeacherDashboard() {
 
     return (
         <TeacherLayout>
-            <motion.div
+            <Motion.div
                 className="flex items-center justify-between mb-8"
                 initial={{ opacity: 0, y: -20 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -146,7 +139,7 @@ export default function TeacherDashboard() {
                 </div>
                 {/* Pass callback to update list after creation */}
                 <CreateClassDialog onClassCreated={handleClassCreated} />
-            </motion.div>
+            </Motion.div>
 
             {loading ? (
                 <div className="flex justify-center items-center h-64">
@@ -159,12 +152,12 @@ export default function TeacherDashboard() {
                     <Button variant="outline" onClick={fetchClasses} className="mt-4">Retry</Button>
                 </div>
             ) : classes.length === 0 ? (
-                <div className="text-center py-20 bg-gray-50/50 border-2 border-dashed border-gray-200 rounded-xl">
+                <div className="text-center py-20 bg-gray-50/50 dark:bg-gray-900 border-2 border-dashed border-gray-200 dark:border-gray-700 rounded-xl">
                     <h3 className="text-xl font-semibold text-gray-700">No classes yet</h3>
                     <p className="text-gray-500 mt-2">Create your first class to get started</p>
                 </div>
             ) : (
-                <motion.div
+                <Motion.div
                     className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
                     variants={containerVariants}
                     initial="hidden"
@@ -179,7 +172,7 @@ export default function TeacherDashboard() {
                             onArchive={() => handleArchiveClick(cl)}
                         />
                     ))}
-                </motion.div>
+                </Motion.div>
             )}
 
             {/* Edit Dialog */}

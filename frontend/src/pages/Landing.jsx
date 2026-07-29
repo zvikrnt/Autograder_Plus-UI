@@ -14,7 +14,7 @@ import { motion } from 'framer-motion';
 const FeatureCard = ({ icon: Icon, title, description }) => (
     <motion.div
         whileHover={{ y: -5 }}
-        className="p-6 bg-white rounded-2xl shadow-sm border border-gray-100 hover:shadow-md transition-all duration-300"
+        className="p-6 bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800 hover:shadow-md transition-all duration-300"
     >
         <div className="w-12 h-12 bg-emerald-50 rounded-xl flex items-center justify-center mb-4">
             <Icon className="w-6 h-6 text-emerald-600" />
@@ -62,9 +62,9 @@ const Landing = () => {
     ];
 
     return (
-        <div className="min-h-screen bg-white font-sans text-gray-900">
+        <div className="min-h-screen bg-white dark:bg-gray-800 font-sans text-gray-900">
             {/* Navigation */}
-            <nav className="fixed top-0 w-full bg-white/80 backdrop-blur-md z-50 border-b border-gray-100">
+            <nav className="fixed top-0 w-full bg-white/80 dark:bg-gray-800/80 backdrop-blur-md z-50 border-b border-gray-100 dark:border-gray-800">
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                     <div className="flex justify-between h-16 items-center">
                         <div className="flex items-center gap-2">
@@ -138,7 +138,7 @@ const Landing = () => {
                             </button>
                             <button
                                 onClick={() => navigate('/login')}
-                                className="px-8 py-4 bg-white text-gray-700 border border-gray-200 rounded-xl font-semibold hover:bg-gray-50 hover:border-gray-300 transition-all duration-200 text-lg shadow-sm w-full sm:w-auto"
+                                className="px-8 py-4 bg-white dark:bg-gray-800 text-gray-700 border border-gray-200 dark:border-gray-700 rounded-xl font-semibold hover:bg-gray-50 dark:hover:bg-gray-800 hover:border-gray-300 dark:hover:border-gray-600 transition-all duration-200 text-lg shadow-sm w-full sm:w-auto"
                             >
                                 Sign In
                             </button>
@@ -151,7 +151,7 @@ const Landing = () => {
             </section>
 
             {/* Features Section */}
-            <section className="py-24 bg-gray-50/50">
+            <section className="py-24 bg-gray-50/50 dark:bg-gray-900/50">
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                     <div className="text-center mb-16">
                         <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mb-4">
@@ -171,7 +171,7 @@ const Landing = () => {
             </section>
 
             {/* Footer */}
-            <footer className="bg-white border-t border-gray-100 pt-16 pb-8">
+            <footer className="bg-white dark:bg-gray-800 border-t border-gray-100 dark:border-gray-800 pt-16 pb-8">
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                     <div className="grid grid-cols-1 md:grid-cols-4 gap-12 mb-12">
                         <div className="col-span-1 md:col-span-2">
@@ -207,14 +207,14 @@ const Landing = () => {
                         </div>
                     </div>
 
-                    <div className="pt-8 border-t border-gray-100 flex flex-col md:flex-row justify-between items-center gap-4">
+                    <div className="pt-8 border-t border-gray-100 dark:border-gray-800 flex flex-col md:flex-row justify-between items-center gap-4">
                         <p className="text-gray-400 text-sm">
                             © 2024 AutoGrader+ Platform. All rights reserved.
                         </p>
                         <div className="flex gap-6 text-gray-400 text-sm">
-                            <a href="#" className="hover:text-gray-600 transition-colors">Privacy</a>
-                            <a href="#" className="hover:text-gray-600 transition-colors">Terms</a>
-                            <a href="#" className="hover:text-gray-600 transition-colors">Cookies</a>
+                            <a href="#" className="hover:text-gray-600 dark:hover:text-gray-400 transition-colors">Privacy</a>
+                            <a href="#" className="hover:text-gray-600 dark:hover:text-gray-400 transition-colors">Terms</a>
+                            <a href="#" className="hover:text-gray-600 dark:hover:text-gray-400 transition-colors">Cookies</a>
                         </div>
                     </div>
                 </div>

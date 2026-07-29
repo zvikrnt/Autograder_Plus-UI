@@ -8,9 +8,14 @@ from channels.generic.websocket import AsyncWebsocketConsumer
 from channels.db import database_sync_to_async
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import AnonymousUser
+from django.core.serializers.json import DjangoJSONEncoder
 
 logger = logging.getLogger(__name__)
 User = get_user_model()
+
+
+def _json_dumps(data):
+    return json.dumps(data, cls=DjangoJSONEncoder)
 
 
 class LeaderboardConsumer(AsyncWebsocketConsumer):
@@ -100,19 +105,19 @@ class LeaderboardConsumer(AsyncWebsocketConsumer):
             elif message_type == 'request_user_rank':
                 await self.handle_user_rank_request(data)
             else:
-                await self.send(text_data=json.dumps({
+                await self.send(text_data=_json_dumps({
                     'type': 'error',
                     'message': f'Unknown message type: {message_type}'
                 }))
                 
         except json.JSONDecodeError:
-            await self.send(text_data=json.dumps({
+            await self.send(text_data=_json_dumps({
                 'type': 'error',
                 'message': 'Invalid JSON format'
             }))
         except Exception as e:
             logger.error(f"Error handling WebSocket message: {e}")
-            await self.send(text_data=json.dumps({
+            await self.send(text_data=_json_dumps({
                 'type': 'error',
                 'message': 'Internal server error'
             }))
@@ -128,7 +133,7 @@ class LeaderboardConsumer(AsyncWebsocketConsumer):
             leaderboard_type, class_id, page, page_size
         )
         
-        await self.send(text_data=json.dumps({
+        await self.send(text_data=_json_dumps({
             'type': 'leaderboard_data',
             'leaderboard_type': leaderboard_type,
             'class_id': class_id,
@@ -144,7 +149,7 @@ class LeaderboardConsumer(AsyncWebsocketConsumer):
             leaderboard_type, class_id
         )
         
-        await self.send(text_data=json.dumps({
+        await self.send(text_data=_json_dumps({
             'type': 'user_rank_data',
             'leaderboard_type': leaderboard_type,
             'class_id': class_id,
@@ -155,14 +160,14 @@ class LeaderboardConsumer(AsyncWebsocketConsumer):
         """Send initial leaderboard and user data upon connection."""
         # Send global leaderboard
         global_data = await self.get_leaderboard_data('global', None, 1, 10)
-        await self.send(text_data=json.dumps({
+        await self.send(text_data=_json_dumps({
             'type': 'initial_global_leaderboard',
             'data': global_data
         }))
         
         # Send user's global rank
         user_rank = await self.get_user_rank_data('global', None)
-        await self.send(text_data=json.dumps({
+        await self.send(text_data=_json_dumps({
             'type': 'initial_user_rank',
             'data': user_rank
         }))
@@ -170,7 +175,7 @@ class LeaderboardConsumer(AsyncWebsocketConsumer):
     # Group message handlers
     async def leaderboard_update(self, event):
         """Handle leaderboard update broadcast."""
-        await self.send(text_data=json.dumps({
+        await self.send(text_data=_json_dumps({
             'type': 'leaderboard_update',
             'leaderboard_type': event['leaderboard_type'],
             'class_id': event.get('class_id'),
@@ -179,7 +184,7 @@ class LeaderboardConsumer(AsyncWebsocketConsumer):
     
     async def rank_change(self, event):
         """Handle user rank change notification."""
-        await self.send(text_data=json.dumps({
+        await self.send(text_data=_json_dumps({
             'type': 'rank_change',
             'old_rank': event['old_rank'],
             'new_rank': event['new_rank'],
@@ -189,7 +194,7 @@ class LeaderboardConsumer(AsyncWebsocketConsumer):
     
     async def achievement_earned(self, event):
         """Handle achievement earned notification."""
-        await self.send(text_data=json.dumps({
+        await self.send(text_data=_json_dumps({
             'type': 'achievement_earned',
             'achievement': event['achievement'],
             'points_earned': event.get('points_earned', 0)
@@ -197,7 +202,7 @@ class LeaderboardConsumer(AsyncWebsocketConsumer):
     
     async def points_update(self, event):
         """Handle points update notification."""
-        await self.send(text_data=json.dumps({
+        await self.send(text_data=_json_dumps({
             'type': 'points_update',
             'old_points': event['old_points'],
             'new_points': event['new_points'],
@@ -286,13 +291,13 @@ class GameConsumer(AsyncWebsocketConsumer):
             message_type = data.get('type')
             
             # Echo back for now - can be extended for specific game events
-            await self.send(text_data=json.dumps({
+            await self.send(text_data=_json_dumps({
                 'type': 'echo',
                 'message': f'Received: {message_type}'
             }))
             
         except json.JSONDecodeError:
-            await self.send(text_data=json.dumps({
+            await self.send(text_data=_json_dumps({
                 'type': 'error',
                 'message': 'Invalid JSON format'
             }))
@@ -300,7 +305,7 @@ class GameConsumer(AsyncWebsocketConsumer):
     # Group message handlers
     async def practice_completed(self, event):
         """Handle practice question completion notification."""
-        await self.send(text_data=json.dumps({
+        await self.send(text_data=_json_dumps({
             'type': 'practice_completed',
             'question_title': event['question_title'],
             'points_earned': event['points_earned'],
@@ -309,7 +314,7 @@ class GameConsumer(AsyncWebsocketConsumer):
     
     async def assignment_submitted(self, event):
         """Handle assignment submission notification."""
-        await self.send(text_data=json.dumps({
+        await self.send(text_data=_json_dumps({
             'type': 'assignment_submitted',
             'assignment_title': event['assignment_title'],
             'points_earned': event['points_earned'],
@@ -318,7 +323,7 @@ class GameConsumer(AsyncWebsocketConsumer):
     
     async def streak_update(self, event):
         """Handle streak update notification."""
-        await self.send(text_data=json.dumps({
+        await self.send(text_data=_json_dumps({
             'type': 'streak_update',
             'current_streak': event['current_streak'],
             'streak_type': event['streak_type']

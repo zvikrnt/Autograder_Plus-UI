@@ -4,6 +4,8 @@ import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { Button } from '../ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import RiveLoginAnimation from './RiveLoginAnimation';
+import GuideModal from '../GuideModal';
+import { BookOpen } from 'lucide-react';
 
 const LoginForm = () => {
   const [formData, setFormData] = useState({
@@ -12,6 +14,7 @@ const LoginForm = () => {
   });
   const [showPassword, setShowPassword] = useState(false);
   const [fieldErrors, setFieldErrors] = useState({});
+  const [showGuide, setShowGuide] = useState(false);
 
   const { login, isLoading, error, clearError } = useAuth();
   const navigate = useNavigate();
@@ -79,7 +82,18 @@ const LoginForm = () => {
   };
 
   return (
-    <div className="flex min-h-screen w-full bg-white">
+    <div className="flex min-h-screen w-full bg-white dark:bg-gray-800 relative">
+      {/* GUIDE Button */}
+      <button
+        onClick={() => setShowGuide(true)}
+        className="absolute top-8 right-8 z-50 flex items-center gap-2 px-4 py-2 bg-white dark:bg-gray-700 text-indigo-600 dark:text-indigo-400 font-bold rounded-xl shadow-md border border-gray-100 dark:border-gray-600 hover:shadow-lg transition-all duration-200 transform hover:-translate-y-0.5"
+      >
+        <BookOpen className="w-5 h-5" />
+        GUIDE
+      </button>
+
+      {showGuide && <GuideModal onClose={() => setShowGuide(false)} />}
+
       {/* Left Side - Animation & Branding */}
       <div className="hidden lg:flex lg:w-1/2 relative bg-[#f9fafb] items-center justify-center overflow-hidden">
         <div className="absolute top-8 left-8">
@@ -97,7 +111,7 @@ const LoginForm = () => {
       </div>
 
       {/* Right Side - Login Form */}
-      <div className="w-full lg:w-1/2 flex items-center justify-center p-8 md:p-12 lg:p-24 bg-white">
+      <div className="w-full lg:w-1/2 flex items-center justify-center p-8 md:p-12 lg:p-24 bg-white dark:bg-gray-800">
         <div className="w-full max-w-md space-y-8">
           <div className="text-center lg:text-left space-y-2">
             <h2 className="text-3xl md:text-4xl font-extrabold text-gray-900 tracking-tight">
@@ -136,7 +150,7 @@ const LoginForm = () => {
                   required
                   value={formData.username}
                   onChange={handleChange}
-                  className={`block w-full px-4 py-3 rounded-xl border ${fieldErrors.username ? 'border-red-300 ring-4 ring-red-100' : 'border-gray-200 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-50'} shadow-sm transition-all duration-200 placeholder-gray-400 outline-none`}
+                  className={`block w-full px-4 py-3 rounded-xl border ${fieldErrors.username ? 'border-red-300 ring-4 ring-red-100' : 'border-gray-200 dark:border-gray-700 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-50'} shadow-sm transition-all duration-200 placeholder-gray-400 dark:placeholder-gray-500 outline-none`}
                   placeholder="Enter your username"
                 />
                 {fieldErrors.username && (
@@ -161,13 +175,13 @@ const LoginForm = () => {
                     required
                     value={formData.password}
                     onChange={handleChange}
-                    className={`block w-full px-4 py-3 rounded-xl border ${fieldErrors.password ? 'border-red-300 ring-4 ring-red-100' : 'border-gray-200 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-50'} shadow-sm transition-all duration-200 placeholder-gray-400 outline-none pr-10`}
+                    className={`block w-full px-4 py-3 rounded-xl border ${fieldErrors.password ? 'border-red-300 ring-4 ring-red-100' : 'border-gray-200 dark:border-gray-700 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-50'} shadow-sm transition-all duration-200 placeholder-gray-400 dark:placeholder-gray-500 outline-none pr-10`}
                     placeholder="Enter your password"
                   />
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
-                    className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600 transition-colors"
+                    className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600 dark:hover:text-gray-400 transition-colors"
                   >
                     {showPassword ? (
                       <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -192,7 +206,7 @@ const LoginForm = () => {
                 id="remember-me"
                 name="remember-me"
                 type="checkbox"
-                className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded cursor-pointer"
+                className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 dark:border-gray-600 rounded cursor-pointer"
               />
               <label htmlFor="remember-me" className="ml-2 block text-sm text-gray-600 cursor-pointer select-none">
                 Remember me for 30 days
@@ -218,7 +232,7 @@ const LoginForm = () => {
 
           <div className="relative my-6">
             <div className="absolute inset-0 flex items-center">
-              <div className="w-full border-t border-gray-200" />
+              <div className="w-full border-t border-gray-200 dark:border-gray-700" />
             </div>
             <div className="relative flex justify-center text-sm">
               {/* Spacer if needed or nothing */}

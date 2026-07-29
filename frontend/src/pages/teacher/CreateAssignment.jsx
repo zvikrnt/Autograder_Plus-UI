@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
-import { MoveLeft, Plus, Save, Loader2, AlertCircle, GripVertical } from "lucide-react";
-import { motion } from "framer-motion";
+import { MoveLeft, Plus, Save, Loader2, AlertCircle, GripVertical, Upload } from "lucide-react";
+import { motion as Motion } from "framer-motion";
 import {
     DndContext,
     DragOverlay,
@@ -30,11 +30,13 @@ import QuestionEditorDialog from "../../components/features/teacher/QuestionEdit
 import McqEditorDialog from "../../components/features/teacher/McqEditorDialog";
 import PracticeQuestionsPanel from "../../components/features/teacher/PracticeQuestionsPanel";
 import { SortableQuestionItem } from "../../components/features/teacher/SortableQuestionItem";
+import BulkQuestionImporter from "../../components/features/teacher/BulkQuestionImporter";
 
 import { assignmentService } from "../../services/assignmentService";
 import { classService } from "../../services/classService";
 
 import { useAuth } from "../../contexts/AuthContext";
+import { tokenManager } from "../../utils/tokenManager";
 
 // Droppable Wrapper Component
 function DroppableQuestionList({ children }) {
@@ -51,6 +53,13 @@ function DroppableQuestionList({ children }) {
             {children}
         </div>
     );
+}
+
+function localDatetimeInput(isoString) {
+    if (!isoString) return "";
+    const d = new Date(isoString);
+    const pad = (n) => String(n).padStart(2, "0");
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
 export default function CreateAssignment() {
@@ -73,6 +82,9 @@ export default function CreateAssignment() {
     const [difficulty, setDifficulty] = useState("Medium");
     const [points, setPoints] = useState(100);
     const [dueDate, setDueDate] = useState("");
+    const [startTime, setStartTime] = useState("");
+    const [durationMinutes, setDurationMinutes] = useState("");
+    const [originalPublished, setOriginalPublished] = useState(null);
 
     // Data State
     const [classes, setClasses] = useState([]);
@@ -83,6 +95,8 @@ export default function CreateAssignment() {
     const [initialLoading, setInitialLoading] = useState(true);
     const [error, setError] = useState(null);
     const [isQuestionDialogOpen, setIsQuestionDialogOpen] = useState(false);
+    const [isBulkImporterOpen, setIsBulkImporterOpen] = useState(false);
+    const [questionBankRefreshKey, setQuestionBankRefreshKey] = useState(0);
     const [editingQuestion, setEditingQuestion] = useState(null);
     const [saveStatus, setSaveStatus] = useState("");
     const [activeId, setActiveId] = useState(null); // For drag overlay
@@ -101,8 +115,9 @@ export default function CreateAssignment() {
 
         const timer = setTimeout(() => {
             if (title || instructions || questions.length > 0) {
-                const draft = { itemType, itemMode, title, instructions, selectedClassId, difficulty, points, dueDate, questions };
-                localStorage.setItem("assignment_draft", JSON.stringify(draft));
+                const draft = { itemType, itemMode, title, instructions, selectedClassId, difficulty, points, dueDate, startTime, durationMinutes, questions };
+                const draftKey = `assignment_draft_${tokenManager.getUserFromToken()?.userId || 'guest'}`;
+                localStorage.setItem(draftKey, JSON.stringify(draft));
                 setSaveStatus("Saved to draft");
             }
         }, 1000);
@@ -127,7 +142,10 @@ export default function CreateAssignment() {
                     setInstructions(source.description);
                     setDifficulty(source.difficulty || "Medium");
                     setPoints(source.points || source.points_total);
-                    setDueDate(source.due_date ? new Date(source.due_date).toISOString().slice(0, 16) : "");
+                    setDueDate(source.due_date ? localDatetimeInput(source.due_date) : "");
+                    setStartTime(source.start_time ? localDatetimeInput(source.start_time) : "");
+                    setDurationMinutes(source.duration_minutes || "");
+                    setOriginalPublished(source.is_published);
                     if (source.class_id || source.module?.class_id) {
                         const cId = source.class_id || source.module?.class_obj?.id;
                         setSelectedClassId(cId ? cId.toString() : "");
@@ -171,10 +189,12 @@ export default function CreateAssignment() {
                     setQuestions(existingQuestions);
 
                     if (data.length > 0) setSelectedClassId(data[0].id.toString());
-                    localStorage.removeItem("assignment_draft");
+                    const draftKey = `assignment_draft_${tokenManager.getUserFromToken()?.userId || 'guest'}`;
+                    localStorage.removeItem(draftKey);
                 }
                 else {
-                    const saved = localStorage.getItem("assignment_draft");
+                    const draftKey = `assignment_draft_${tokenManager.getUserFromToken()?.userId || 'guest'}`;
+                    const saved = localStorage.getItem(draftKey);
                     let parsedData = null;
                     if (saved) {
                         parsedData = JSON.parse(saved);
@@ -185,6 +205,8 @@ export default function CreateAssignment() {
                         setDifficulty(parsedData.difficulty || "Medium");
                         setPoints(parsedData.points || 100);
                         setDueDate(parsedData.dueDate || "");
+                        setStartTime(parsedData.startTime || "");
+                        setDurationMinutes(parsedData.durationMinutes || "");
                         setQuestions(parsedData.questions || []);
                         if (parsedData.selectedClassId) setSelectedClassId(parsedData.selectedClassId);
                     }
@@ -357,7 +379,9 @@ export default function CreateAssignment() {
                 type: itemType,
                 mode: itemMode,
                 due_date: dueDate ? new Date(dueDate).toISOString() : null,
-                is_published: isPublished
+                start_time: startTime ? new Date(startTime).toISOString() : null,
+                duration_minutes: durationMinutes ? parseInt(durationMinutes) : null,
+                is_published: isPublished || (isEditMode ? originalPublished ?? false : false)
             };
 
             if (isEditMode && editId) {
@@ -366,7 +390,8 @@ export default function CreateAssignment() {
                 await assignmentService.createAssignment(payload);
             }
 
-            localStorage.removeItem("assignment_draft");
+            const draftKey = `assignment_draft_${tokenManager.getUserFromToken()?.userId || 'guest'}`;
+            localStorage.removeItem(draftKey);
             navigate(`/teacher/class/${selectedClassId}`);
         } catch (err) {
             console.error("Failed to save assignment:", err);
@@ -418,16 +443,21 @@ export default function CreateAssignment() {
                 onDragStart={handleDragStart}
                 onDragEnd={handleDragEnd}
             >
-                <motion.div
+                <Motion.div
                     initial={{ opacity: 0, y: -20 }}
                     animate={{ opacity: 1, y: 0 }}
                     className="h-[calc(100vh-64px)] overflow-hidden flex flex-col"
                 >
                     {/* Header */}
-                    <div className="flex-none px-6 py-4 border-b bg-white flex items-center justify-between z-10">
+                    <div className="flex-none px-6 py-4 border-b bg-white dark:bg-gray-800 flex items-center justify-between z-10">
                         <div className="flex items-center gap-4">
-                            <Button variant="ghost" size="icon" asChild>
+                            {/* Previuse code : <Button variant="ghost" size="icon" asChild>
                                 <Link to="/teacher/dashboard">
+                                    <MoveLeft className="w-5 h-5" />
+                                </Link>
+                            </Button> */}
+                            <Button variant="ghost" size="icon" asChild>
+                                <Link to={selectedClassId ? `/teacher/class/${selectedClassId}?tab=classwork` : "/teacher/dashboard"}>
                                     <MoveLeft className="w-5 h-5" />
                                 </Link>
                             </Button>
@@ -470,14 +500,30 @@ export default function CreateAssignment() {
                     {/* Main Content Grid */}
                     <div className="flex-1 flex overflow-hidden">
                         {/* Left Sidebar: Question Bank */}
-                        <div className="w-1/3 min-w-[350px] max-w-[450px] border-r border-gray-200 bg-gray-50 flex flex-col">
+                        <div className="w-1/3 min-w-[350px] max-w-[450px] border-r border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 flex flex-col">
+                            <div className="flex-none px-4 pt-4">
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="sm"
+                                    className="w-full gap-2 bg-white dark:bg-gray-800"
+                                    onClick={() => setIsBulkImporterOpen(true)}
+                                >
+                                    <Upload className="w-4 h-4" />
+                                    Import Questions
+                                </Button>
+                            </div>
                             <div className="flex-1 p-4 overflow-hidden">
-                                <PracticeQuestionsPanel onAddQuestion={handleAddFromBank} questionType={itemType === 'quiz' ? 'mcq' : 'coding'} />
+                                <PracticeQuestionsPanel
+                                    onAddQuestion={handleAddFromBank}
+                                    questionType={itemType === 'quiz' ? 'mcq' : 'coding'}
+                                    refreshKey={questionBankRefreshKey}
+                                />
                             </div>
                         </div>
 
                         {/* Right Content: Assignment Form */}
-                        <div className="flex-1 overflow-y-auto bg-white">
+                        <div className="flex-1 overflow-y-auto bg-white dark:bg-gray-800">
                             <div className="max-w-4xl mx-auto p-8 pb-20">
                                 {error && (
                                     <div className="bg-red-50 text-red-600 p-4 rounded-lg mb-6 flex items-center gap-3 border border-red-200">
@@ -548,6 +594,28 @@ export default function CreateAssignment() {
                                                         onChange={(e) => setDueDate(e.target.value)}
                                                     />
                                                 </div>
+                                                {(itemMode === 'exam' || itemType === 'quiz') && (
+                                                    <div className="space-y-2">
+                                                        <Label>Start Time</Label>
+                                                        <Input
+                                                            type="datetime-local"
+                                                            value={startTime}
+                                                            onChange={(e) => setStartTime(e.target.value)}
+                                                        />
+                                                    </div>
+                                                )}
+                                                {(itemMode === 'exam' || itemType === 'quiz') && (
+                                                    <div className="space-y-2">
+                                                        <Label>Duration (minutes)</Label>
+                                                        <Input
+                                                            type="number"
+                                                            min="1"
+                                                            placeholder="e.g. 30"
+                                                            value={durationMinutes}
+                                                            onChange={(e) => setDurationMinutes(e.target.value)}
+                                                        />
+                                                    </div>
+                                                )}
                                             </div>
 
                                             <div className="space-y-2">
@@ -607,11 +675,11 @@ export default function CreateAssignment() {
                             </div>
                         </div>
                     </div>
-                </motion.div>
+                </Motion.div>
 
                 <DragOverlay>
                     {activeId ? (
-                        <div className="bg-white p-4 rounded-lg shadow-xl border border-indigo-200 opacity-90 cursor-grabbing w-[300px]">
+                        <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow-xl border border-indigo-200 opacity-90 cursor-grabbing w-[300px]">
                             <div className="flex items-center gap-3">
                                 <GripVertical className="w-5 h-5 text-gray-400" />
                                 <span className="font-medium text-gray-900">Moving Question...</span>
@@ -635,6 +703,11 @@ export default function CreateAssignment() {
                         onSave={handleSaveQuestion}
                     />
                 )}
+                <BulkQuestionImporter
+                    open={isBulkImporterOpen}
+                    onOpenChange={setIsBulkImporterOpen}
+                    onSuccess={() => setQuestionBankRefreshKey((key) => key + 1)}
+                />
             </DndContext>
         </TeacherLayout>
     );

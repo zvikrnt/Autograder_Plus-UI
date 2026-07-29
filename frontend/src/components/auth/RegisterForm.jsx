@@ -102,7 +102,7 @@ const RegisterForm = () => {
   };
 
   return (
-    <div className="flex min-h-screen w-full bg-white">
+    <div className="flex min-h-screen w-full bg-white dark:bg-gray-800">
       {/* Left Side - Animation & Branding */}
       <div className="hidden lg:flex lg:w-1/2 relative bg-[#f9fafb] items-center justify-center overflow-hidden">
         <div className="absolute top-8 left-8">
@@ -119,7 +119,7 @@ const RegisterForm = () => {
       </div>
 
       {/* Right Side - Form */}
-      <div className="w-full lg:w-1/2 flex items-center justify-center p-8 bg-white overflow-y-auto">
+      <div className="w-full lg:w-1/2 flex items-center justify-center p-8 bg-white dark:bg-gray-800 overflow-y-auto">
         <div className="w-full max-w-lg space-y-6">
           <div className="text-center lg:text-left space-y-2">
             <h2 className="text-3xl font-extrabold text-gray-900 tracking-tight">
@@ -148,7 +148,7 @@ const RegisterForm = () => {
                   name="role"
                   value={formData.role}
                   onChange={handleChange}
-                  className="block w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-50 shadow-sm transition-all duration-200 outline-none appearance-none bg-white"
+                   className="block w-full px-4 py-3 rounded-xl border border-gray-200 dark:border-gray-700 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-50 shadow-sm transition-all duration-200 outline-none appearance-none bg-white dark:bg-gray-800"
                 >
                   <option value="student">Student</option>
                   <option value="teacher">Teacher</option>
@@ -173,7 +173,7 @@ const RegisterForm = () => {
                   required
                   value={formData.first_name}
                   onChange={handleChange}
-                  className={`block w-full px-4 py-3 rounded-xl border ${fieldErrors.first_name ? 'border-red-300 ring-4 ring-red-100' : 'border-gray-200 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-50'} shadow-sm transition-all duration-200 placeholder-gray-400 outline-none`}
+                  className={`block w-full px-4 py-3 rounded-xl border ${fieldErrors.first_name ? 'border-red-300 ring-4 ring-red-100' : 'border-gray-200 dark:border-gray-700 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-50'} shadow-sm transition-all duration-200 placeholder-gray-400 dark:placeholder-gray-500 outline-none`}
                   placeholder="John"
                 />
                 {fieldErrors.first_name && (
@@ -192,7 +192,7 @@ const RegisterForm = () => {
                   required
                   value={formData.last_name}
                   onChange={handleChange}
-                  className={`block w-full px-4 py-3 rounded-xl border ${fieldErrors.last_name ? 'border-red-300 ring-4 ring-red-100' : 'border-gray-200 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-50'} shadow-sm transition-all duration-200 placeholder-gray-400 outline-none`}
+                  className={`block w-full px-4 py-3 rounded-xl border ${fieldErrors.last_name ? 'border-red-300 ring-4 ring-red-100' : 'border-gray-200 dark:border-gray-700 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-50'} shadow-sm transition-all duration-200 placeholder-gray-400 dark:placeholder-gray-500 outline-none`}
                   placeholder="Doe"
                 />
                 {fieldErrors.last_name && (
@@ -213,7 +213,7 @@ const RegisterForm = () => {
                 required
                 value={formData.username}
                 onChange={handleChange}
-                className={`block w-full px-4 py-3 rounded-xl border ${fieldErrors.username ? 'border-red-300 ring-4 ring-red-100' : 'border-gray-200 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-50'} shadow-sm transition-all duration-200 placeholder-gray-400 outline-none`}
+                 className={`block w-full px-4 py-3 rounded-xl border ${fieldErrors.username ? 'border-red-300 ring-4 ring-red-100' : 'border-gray-200 dark:border-gray-700 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-50'} shadow-sm transition-all duration-200 placeholder-gray-400 dark:placeholder-gray-500 outline-none`}
                 placeholder="Choose a username"
               />
               {fieldErrors.username && (
@@ -233,7 +233,7 @@ const RegisterForm = () => {
                 required
                 value={formData.email}
                 onChange={handleChange}
-                className={`block w-full px-4 py-3 rounded-xl border ${fieldErrors.email ? 'border-red-300 ring-4 ring-red-100' : 'border-gray-200 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-50'} shadow-sm transition-all duration-200 placeholder-gray-400 outline-none`}
+                 className={`block w-full px-4 py-3 rounded-xl border ${fieldErrors.email ? 'border-red-300 ring-4 ring-red-100' : 'border-gray-200 dark:border-gray-700 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-50'} shadow-sm transition-all duration-200 placeholder-gray-400 dark:placeholder-gray-500 outline-none`}
                 placeholder="john@example.com"
               />
               {fieldErrors.email && (
@@ -254,13 +254,13 @@ const RegisterForm = () => {
                   required
                   value={formData.password}
                   onChange={handleChange}
-                  className={`block w-full px-4 py-3 rounded-xl border ${fieldErrors.password ? 'border-red-300 ring-4 ring-red-100' : 'border-gray-200 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-50'} shadow-sm transition-all duration-200 placeholder-gray-400 outline-none pr-10`}
+                  className={`block w-full px-4 py-3 rounded-xl border ${fieldErrors.password ? 'border-red-300 ring-4 ring-red-100' : 'border-gray-200 dark:border-gray-700 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-50'} shadow-sm transition-all duration-200 placeholder-gray-400 dark:placeholder-gray-500 outline-none pr-10`}
                   placeholder="Create a password"
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600 transition-colors"
+                  className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600 dark:hover:text-gray-400 transition-colors"
                 >
                   {showPassword ? (
                     <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -291,7 +291,7 @@ const RegisterForm = () => {
                 required
                 value={formData.password2}
                 onChange={handleChange}
-                className={`block w-full px-4 py-3 rounded-xl border ${fieldErrors.password2 ? 'border-red-300 ring-4 ring-red-100' : 'border-gray-200 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-50'} shadow-sm transition-all duration-200 placeholder-gray-400 outline-none`}
+                 className={`block w-full px-4 py-3 rounded-xl border ${fieldErrors.password2 ? 'border-red-300 ring-4 ring-red-100' : 'border-gray-200 dark:border-gray-700 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-50'} shadow-sm transition-all duration-200 placeholder-gray-400 dark:placeholder-gray-500 outline-none`}
                 placeholder="Confirm your password"
               />
               {fieldErrors.password2 && (

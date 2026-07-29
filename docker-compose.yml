@@ -44,26 +44,26 @@ services:
       timeout: 20s
       retries: 3
 
-  celery:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
-    container_name: autograder_celery
-    command: celery -A autograder worker -l info
-    volumes:
-      - ./backend:/app
-      - /var/run/docker.sock:/var/run/docker.sock
-    depends_on:
-      - db
-      - redis
-    environment:
-      - POSTGRES_DB=autograder
-      - POSTGRES_USER=postgres
-      - POSTGRES_PASSWORD=password
-      - POSTGRES_HOST=db
-      - REDIS_URL=redis://redis:6379/1
-      - CELERY_BROKER_URL=redis://redis:6379/0
-      - DEBUG=1
+#   celery:
+#     build:
+#       context: ./backend
+#       dockerfile: Dockerfile
+#     container_name: autograder_celery
+#     command: celery -A autograder worker -l info
+#     volumes:
+#       - ./backend:/app
+#       - /var/run/docker.sock:/var/run/docker.sock
+#     depends_on:
+#       - db
+#       - redis
+#     environment:
+#       - POSTGRES_DB=autograder
+#       - POSTGRES_USER=postgres
+#       - POSTGRES_PASSWORD=password
+#       - POSTGRES_HOST=db
+#       - REDIS_URL=redis://redis:6379/1
+#       - CELERY_BROKER_URL=redis://redis:6379/0
+#       - DEBUG=1
 
 volumes:
   postgres_data:

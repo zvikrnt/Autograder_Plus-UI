@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
-import { useParams } from "react-router-dom";
-import { Info, StickyNote, Users, Send, MoreVertical, MessageSquare, Paperclip, X, Calendar, Trash2 } from "lucide-react";
+import { useParams, Link, useNavigate } from "react-router-dom";
+import { Info, StickyNote, Users, Send, MoreVertical, MessageSquare, Paperclip, X, Calendar, Trash2, Edit2 } from "lucide-react";
 import { Button } from "../../ui/button";
 import { Card } from "../../ui/card";
 import { Input } from "../../ui/input";
@@ -15,18 +15,25 @@ import {
     DialogTitle,
     DialogTrigger,
 } from "../../ui/dialog";
+import { toast } from "sonner";
 import { assignmentService } from "../../../services/assignmentService";
 import { classService } from "../../../services/classService";
 import { streamService } from "../../../services/streamService";
+import { classContentService } from "../../../services/classContentService";
+import ClassStatsCards from "./ClassStatsCards";
+import { RoleBadge } from "./RoleBadge";
 
 export default function StreamTab() {
     const { classId } = useParams();
+    const navigate = useNavigate();
     const [classData, setClassData] = useState(null);
     const [upcomingWork, setUpcomingWork] = useState([]);
     const [isAnnouncing, setIsAnnouncing] = useState(false);
     const [announcementText, setAnnouncementText] = useState("");
     const [editingPostId, setEditingPostId] = useState(null);
     const [editText, setEditText] = useState("");
+    const [pendingFiles, setPendingFiles] = useState([]); // files to attach to a new announcement
+    const [posting, setPosting] = useState(false);
     const [posts, setPosts] = useState([]);
     const [currentUser, setCurrentUser] = useState(null); // Would normally get from AuthContext
     const [loading, setLoading] = useState(true);
@@ -77,6 +84,7 @@ export default function StreamTab() {
                         commentsCount: a.comments_count || (a.comments?.length || 0),
                         showComments: false,
                         isPinned: a.is_pinned,
+                        attachments: a.attachments || [],
                         raw: a
                     }));
                     allPosts = [...allPosts, ...announcements];
@@ -141,11 +149,25 @@ export default function StreamTab() {
     }, [classId]);
 
     const handlePost = async () => {
-        if (!announcementText.trim()) return;
+        if (!announcementText.trim() && pendingFiles.length === 0) return;
 
+        setPosting(true);
         try {
             const res = await streamService.createAnnouncement(classId, { content: announcementText });
             if (res.success) {
+                // Upload any pending attachments to the new announcement.
+                let attachments = [];
+                if (pendingFiles.length > 0) {
+                    for (const f of pendingFiles) {
+                        try {
+                            const up = await classContentService.uploadAnnouncementAttachment(res.data.id, f);
+                            attachments.push(up.data);
+                        } catch (e) {
+                            console.error("Attachment upload failed:", e);
+                            toast.error(`Failed to attach ${f.name}`);
+                        }
+                    }
+                }
                 const newPost = {
                     id: res.data.id,
                     type: 'announcement',
@@ -156,14 +178,19 @@ export default function StreamTab() {
                     commentsCount: 0,
                     showComments: false,
                     isPinned: res.data.is_pinned,
+                    attachments,
                     raw: res.data
                 };
                 setPosts([newPost, ...posts]);
                 setAnnouncementText("");
+                setPendingFiles([]);
                 setIsAnnouncing(false);
             }
         } catch (error) {
             console.error("Failed to post:", error);
+            toast.error("Failed to post announcement.");
+        } finally {
+            setPosting(false);
         }
     };
 
@@ -195,6 +222,25 @@ export default function StreamTab() {
         } catch (error) {
             console.error("Failed to update:", error);
         }
+    };
+
+    const handleDeleteAssignment = async (assignment) => {
+        if (!window.confirm(`Are you sure you want to delete the ${assignment.type || 'assignment'} "${assignment.title}"?`)) return;
+
+        try {
+            const res = await assignmentService.deleteAssignment(assignment.id);
+            if (res.success) {
+                setPosts(posts.filter(p => p.id !== assignment.id));
+                toast.success("Assignment deleted successfully");
+            }
+        } catch (error) {
+            console.error("Failed to delete assignment", error);
+            alert("Failed to delete assignment. Please try again.");
+        }
+    };
+
+    const handleEditAssignment = (assignment) => {
+        navigate(`/teacher/assignment/create?id=${assignment.id}&edit=true`);
     };
 
     const toggleComments = async (post) => {
@@ -265,6 +311,8 @@ export default function StreamTab() {
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
             {/* Left Sidebar */}
             <div className="space-y-6 hidden lg:block">
+                {/* Teacher/TA-only class overview stats */}
+                <ClassStatsCards classId={classId} />
                 <Card>
                     <div className="p-4 space-y-3">
                         <h3 className="font-semibold text-gray-600 text-sm">Class Code</h3>
@@ -336,13 +384,38 @@ export default function StreamTab() {
                                 onChange={(e) => setAnnouncementText(e.target.value)}
                                 autoFocus
                             />
+                            {/* Pending attachments */}
+                            {pendingFiles.length > 0 && (
+                                <div className="flex flex-wrap gap-2">
+                                    {pendingFiles.map((f, i) => (
+                                        <span key={i} className="flex items-center gap-1.5 text-xs bg-indigo-50 text-indigo-700 border border-indigo-100 rounded px-2 py-1">
+                                            <Paperclip className="w-3 h-3" />
+                                            <span className="max-w-[160px] truncate">{f.name}</span>
+                                            <X className="w-3 h-3 cursor-pointer hover:text-red-500"
+                                                onClick={() => setPendingFiles(pendingFiles.filter((_, idx) => idx !== i))} />
+                                        </span>
+                                    ))}
+                                </div>
+                            )}
                             <div className="flex justify-between items-center">
-                                <Button variant="ghost" size="icon" className="text-gray-400 hover:text-indigo-600">
+                                <label className="cursor-pointer text-gray-400 hover:text-indigo-600 p-2 rounded-md hover:bg-gray-100" title="Attach files (PDF, PPT, etc.)">
                                     <Paperclip className="w-5 h-5" />
-                                </Button>
+                                    <input
+                                        type="file"
+                                        multiple
+                                        className="hidden"
+                                        onChange={(e) => {
+                                            const files = Array.from(e.target.files || []);
+                                            if (files.length) setPendingFiles((prev) => [...prev, ...files]);
+                                            e.target.value = ""; // allow re-selecting same file
+                                        }}
+                                    />
+                                </label>
                                 <div className="flex gap-2">
-                                    <Button variant="ghost" onClick={() => setIsAnnouncing(false)}>Cancel</Button>
-                                    <Button onClick={handlePost} disabled={!announcementText.trim()}>Post</Button>
+                                    <Button variant="ghost" onClick={() => { setIsAnnouncing(false); setPendingFiles([]); }}>Cancel</Button>
+                                    <Button onClick={handlePost} disabled={posting || (!announcementText.trim() && pendingFiles.length === 0)}>
+                                        {posting ? "Posting…" : "Post"}
+                                    </Button>
                                 </div>
                             </div>
                         </div>
@@ -396,10 +469,19 @@ export default function StreamTab() {
                                         </Button>
                                     </DropdownMenuTrigger>
                                     <DropdownMenuContent>
-                                        {post.type === 'announcement' && (
+                                        {post.type === 'announcement' ? (
                                             <>
                                                 <DropdownMenuItem onClick={() => startEdit(post)}>Edit</DropdownMenuItem>
                                                 <DropdownMenuItem onClick={() => handleDelete(post)} className="text-red-600">
+                                                    <Trash2 className="w-4 h-4 mr-2" /> Delete
+                                                </DropdownMenuItem>
+                                            </>
+                                        ) : (
+                                            <>
+                                                <DropdownMenuItem onClick={() => handleEditAssignment(post)}>
+                                                    <Edit2 className="w-4 h-4 mr-2" /> Edit
+                                                </DropdownMenuItem>
+                                                <DropdownMenuItem onClick={() => handleDeleteAssignment(post)} className="text-red-600">
                                                     <Trash2 className="w-4 h-4 mr-2" /> Delete
                                                 </DropdownMenuItem>
                                             </>
@@ -433,16 +515,64 @@ export default function StreamTab() {
                                 </div>
                             )}
 
+                            {/* Announcement attachments */}
+                            {!isAssignmentLike(post.type) && Array.isArray(post.attachments) && post.attachments.length > 0 && (
+                                <div className="flex flex-wrap gap-2 mb-4">
+                                    {post.attachments.map((att) => (
+                                        <a
+                                            key={att.id}
+                                            href={att.file_url}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="flex items-center gap-2 border border-gray-200 rounded-lg px-3 py-2 bg-gray-50 hover:bg-gray-100 transition-colors max-w-[240px]"
+                                            title={att.original_name}
+                                        >
+                                            <div className="w-8 h-8 bg-white rounded border flex items-center justify-center text-indigo-600 shrink-0">
+                                                <Paperclip className="w-4 h-4" />
+                                            </div>
+                                            <div className="min-w-0">
+                                                <div className="text-xs font-medium text-gray-800 truncate">{att.original_name || "Attachment"}</div>
+                                                <div className="text-[10px] text-gray-400">
+                                                    {att.size ? `${(att.size / 1024).toFixed(0)} KB` : "Download"}
+                                                </div>
+                                            </div>
+                                        </a>
+                                    ))}
+                                </div>
+                            )}
+
                             {/* Attachments Placeholder */}
                             {isAssignmentLike(post.type) && (
-                                <div onClick={() => window.location.href = `/teacher/class/${classId}/assignments/${post.id}`} className="border border-gray-200 rounded-lg p-3 flex items-center gap-3 bg-gray-50 mb-4 cursor-pointer hover:bg-gray-100">
-                                    <div className="w-10 h-10 bg-white rounded border flex items-center justify-center text-indigo-600 font-bold text-xs uppercase shadow-sm">
-                                        <StickyNote className="w-5 h-5" />
+                                <>
+                                    {/* PREVIOUS CODE (Commented out): 
+                                    <div className="border border-gray-200 rounded-lg p-3 flex items-center gap-3 bg-gray-50 mb-4">
+                                        <div className="w-10 h-10 bg-white rounded border flex items-center justify-center text-indigo-600 font-bold text-xs uppercase shadow-sm">
+                                            <StickyNote className="w-5 h-5" />
+                                        </div>
+                                        <div className="flex-1">
+                                            <div className="text-sm font-medium text-indigo-600">{post.displayType || 'Assignment'}</div>
+                                            <div className="text-xs text-gray-600">{post.title}</div>
+                                        </div>
+                                        <span className="text-sm font-medium text-indigo-600">Open</span>
                                     </div>
-                                    <span className="text-sm font-medium text-indigo-600 hover:underline">
-                                        View {post.displayType || 'Assignment'}
-                                    </span>
-                                </div>
+                                    */}
+
+                                    {/* NEW CODE (FIX): Made the assignment card clickable and functional */}
+                                    <Link 
+                                        to={`/teacher/assignment/${post.id}?tab=questions`} 
+                                        className="border border-gray-200 rounded-lg p-3 flex items-center gap-3 bg-gray-50 mb-4 cursor-pointer hover:bg-gray-100 transition-colors block"
+                                        title="View Questions"
+                                    >
+                                        <div className="w-10 h-10 bg-white rounded border flex items-center justify-center text-indigo-600 font-bold text-xs uppercase shadow-sm">
+                                            <StickyNote className="w-5 h-5" />
+                                        </div>
+                                        <div className="flex-1">
+                                            <div className="text-sm font-medium text-indigo-600">{post.displayType || 'Assignment'}</div>
+                                            <div className="text-xs text-gray-600">{post.title}</div>
+                                        </div>
+                                        <span className="text-sm font-medium text-indigo-600 font-semibold underline decoration-2 underline-offset-4">View Questions</span>
+                                    </Link>
+                                </>
                             )}
                         </div>
 
@@ -468,6 +598,7 @@ export default function StreamTab() {
                                             <div>
                                                 <div className="flex items-center gap-2">
                                                     <span className="text-xs font-bold text-gray-900">{comment.author?.first_name} {comment.author?.last_name}</span>
+                                                    <RoleBadge role={comment.author_role} />
                                                     <span className="text-[10px] text-gray-400">{new Date(comment.created_at).toLocaleDateString()}</span>
                                                 </div>
                                                 <p className="text-sm text-gray-600 mt-0.5">{comment.content || comment.text}</p>

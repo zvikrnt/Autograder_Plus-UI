@@ -23,6 +23,23 @@ export const submissionService = {
     return await api.get(url);
   },
 
+  // Assignment-level overview: per-question avg score, attempts, overall pass %
+  getAssignmentOverview: async (assignmentId) => {
+    return await api.get(`/submissions/attempts/overview/?assignment_id=${assignmentId}`);
+  },
+
+  // Live monitoring: per-assignment live/idle/inactive counts + per-student activity
+  getLiveMonitor: async (assignmentId) => {
+    return await api.get(`/submissions/progress/live-monitor/?assignment_id=${assignmentId}`);
+  },
+
+  // A single student's current draft code (for the live 'watch' view)
+  getStudentLiveCode: async (assignmentId, studentId) => {
+    return await api.get(
+      `/submissions/progress/student-live-code/?assignment_id=${assignmentId}&student_id=${studentId}`
+    );
+  },
+
   // Get submission by ID
   getSubmission: async (submissionId) => {
     return await api.get(API_CONFIG.ENDPOINTS.SUBMISSIONS.DETAIL(submissionId));
@@ -138,6 +155,17 @@ export const submissionService = {
 
   getAssignmentProgressWithPoints: async (assignmentId) => {
     return await api.get(`/submissions/progress/assignment-progress-with-points/?assignment_id=${assignmentId}`);
+  },
+
+  // Student Report Endpoints
+  getMyAssignmentReportSummary: async (assignmentId) => {
+    return await api.get(`/submissions/progress/my-assignment-report-summary/?assignment_id=${assignmentId}`);
+  },
+
+  getMyAssignmentQuestionReport: async (assignmentId, assignmentQuestionId) => {
+    return await api.get(
+      `/submissions/progress/my-assignment-question-report/?assignment_id=${assignmentId}&assignment_question_id=${assignmentQuestionId}`
+    );
   },
 
   // Gradebook Methods

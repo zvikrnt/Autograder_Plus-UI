@@ -1,0 +1,50 @@
+\begin{algorithm}[t]
+\caption{MARS Momentum-Aware Rating Update}
+\label{alg:mars_update}
+\begin{algorithmic}[1]
+\REQUIRE Learner state $s_t=(R_t,v_t,n_t,\sigma_t^2,k_t,W_t)$, item $q_t$, response $(S_t,t_t,H_t)$
+\ENSURE Updated learner state $s_{t+1}$
+\STATE Compute effective item rating $R_q^{eff}=R_q+\xi c(q)$
+\STATE Compute expected correctness $E_t=\frac{1}{1+10^{(R_q^{eff}-R_t)/400}}$
+\STATE Compute response quality $P_t$ using correctness, response time, hint use, and streak quality
+\STATE Compute dynamic factor $K_t$ from learner count $n_t$ and volatility $\sigma_t^2$
+\STATE Compute streak adjustment $\phi(k_t)$
+\STATE Compute raw update $\Delta R_t^{raw}=K_t\phi(k_t)(P_t-E_t)$
+\IF{rapid correct response is detected}
+    \STATE Cap positive update $\Delta R_t^{raw} \leftarrow \min(\Delta R_t^{raw}, \kappa K_{min})$
+\ENDIF
+\STATE Compute volatility ratio $\nu_t=\frac{\sigma_t^2}{\sigma_t^2+\sigma_0^2}$
+\STATE Compute momentum coefficient $\mu_t=\mu_{min}+(\mu_{max}-\mu_{min})(1-\nu_t)$
+\STATE Update velocity $v_{t+1}=\mu_t v_t+\Delta R_t^{raw}$
+\STATE Clip velocity $\bar{v}_{t+1}=\operatorname{clip}(v_{t+1},-v_{max},v_{max})$
+\STATE Update rating $R_{t+1}=R_t+\bar{v}_{t+1}$
+\STATE Update streak, volatility window, weak-topic set, and served-item history
+\RETURN $s_{t+1}$
+\end{algorithmic}
+\end{algorithm}
+
+\begin{algorithm}[t]
+\caption{MARS Graph-Aware Recommendation}
+\label{alg:mars_recommend}
+\begin{algorithmic}[1]
+\REQUIRE Learner state $s_t$, graph $G=(V,E,w)$, last item $q_t$
+\ENSURE Next item $q^*$
+\STATE Compute behavioral state $m_t \in \{\text{hot},\text{steady},\text{cold}\}$
+\STATE Compute target rating $R_t^{target}=R_t+\Delta(m_t)$
+\IF{remediation is active for missed item $q_m$}
+    \STATE Build candidate set $\mathcal{C}=\{q':d_G(q_m,q')\le h, R_{q'}<R_{q_m}\}$
+\ELSE
+    \STATE Build candidate set $\mathcal{C}=\{q':d_G(q_t,q')\le k, q'\notin Q^{ans}, q'\notin Q^{srv}\}$
+\ENDIF
+\IF{$\mathcal{C}=\emptyset$}
+    \STATE Use fallback candidates nearest to $R_t^{target}$
+\ENDIF
+\FOR{each candidate $q'\in \mathcal{C}$}
+    \STATE Compute difficulty match, weak-topic bonus, diversity bonus, and graph centrality
+    \STATE Compute velocity alignment bonus using sign of $v_t$
+    \STATE Compute final utility $U(q'|s_t,G)$
+\ENDFOR
+\STATE $q^*=\arg\max_{q'\in\mathcal{C}} U(q'|s_t,G)$
+\RETURN $q^*$
+\end{algorithmic}
+\end{algorithm}

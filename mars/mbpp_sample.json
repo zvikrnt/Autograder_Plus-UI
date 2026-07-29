@@ -1,0 +1,371 @@
+{
+  "questions": [
+    {
+      "title": "Write a python function to find the first repeated character in a given string",
+      "slug": "mbpp-602",
+      "description": "Write a python function to find the first repeated character in a given string.",
+      "difficulty": "Easy",
+      "category": "Basics",
+      "question_type": "coding",
+      "entry_point": "first_repeated_char",
+      "starter_code": "def first_repeated_char():\n    # write your solution\n    pass",
+      "reference_solution": "def first_repeated_char(str1):\r\n  for index,c in enumerate(str1):\r\n    if str1[:index+1].count(c) > 1:\r\n      return c \r\n  return \"None\"",
+      "point_value": 100,
+      "tags": [
+        "strings",
+        "dictionaries",
+        "loops"
+      ],
+      "elo_rating": 950.0,
+      "ref_time_sec": 120.0,
+      "source": "mbpp+gemma4",
+      "test_cases": [
+        {
+          "input": "first_repeated_char(\"abcabc\")",
+          "expected_output": "\"a\"",
+          "explanation": "",
+          "concept": "",
+          "is_hidden": false,
+          "points": 10
+        },
+        {
+          "input": "first_repeated_char(\"abc\")",
+          "expected_output": "\"None\"",
+          "explanation": "",
+          "concept": "",
+          "is_hidden": false,
+          "points": 10
+        },
+        {
+          "input": "first_repeated_char(\"123123\")",
+          "expected_output": "\"1\"",
+          "explanation": "",
+          "concept": "",
+          "is_hidden": false,
+          "points": 10
+        }
+      ]
+    },
+    {
+      "title": "Write a function to get a lucid number smaller than or equal to n",
+      "slug": "mbpp-603",
+      "description": "Write a function to get a lucid number smaller than or equal to n.",
+      "difficulty": "Easy",
+      "category": "Basics",
+      "question_type": "coding",
+      "entry_point": "get_ludic",
+      "starter_code": "def get_ludic():\n    # write your solution\n    pass",
+      "reference_solution": "def get_ludic(n):\r\n\tludics = []\r\n\tfor i in range(1, n + 1):\r\n\t\tludics.append(i)\r\n\tindex = 1\r\n\twhile(index != len(ludics)):\r\n\t\tfirst_ludic = ludics[index]\r\n\t\tremove_index = index + first_ludic\r\n\t\twhile(remove_index < len(ludics)):\r\n\t\t\tludics.remove(ludics[remove_index])\r\n\t\t\tremove_index = remove_index + first_ludic - 1\r\n\t\tindex += 1\r\n\treturn ludics",
+      "point_value": 100,
+      "tags": [
+        "loops",
+        "math",
+        "functions"
+      ],
+      "elo_rating": 950.0,
+      "ref_time_sec": 120.0,
+      "source": "mbpp+gemma4",
+      "test_cases": [
+        {
+          "input": "get_ludic(10)",
+          "expected_output": "[1, 2, 3, 5, 7]",
+          "explanation": "",
+          "concept": "",
+          "is_hidden": false,
+          "points": 10
+        },
+        {
+          "input": "get_ludic(25)",
+          "expected_output": "[1, 2, 3, 5, 7, 11, 13, 17, 23, 25]",
+          "explanation": "",
+          "concept": "",
+          "is_hidden": false,
+          "points": 10
+        },
+        {
+          "input": "get_ludic(45)",
+          "expected_output": "[1, 2, 3, 5, 7, 11, 13, 17, 23, 25, 29, 37, 41, 43]",
+          "explanation": "",
+          "concept": "",
+          "is_hidden": false,
+          "points": 10
+        }
+      ]
+    },
+    {
+      "title": "Write a function to reverse words in a given string",
+      "slug": "mbpp-604",
+      "description": "Write a function to reverse words in a given string.",
+      "difficulty": "Easy",
+      "category": "Basics",
+      "question_type": "coding",
+      "entry_point": "reverse_words",
+      "starter_code": "def reverse_words():\n    # write your solution\n    pass",
+      "reference_solution": "def reverse_words(s):\r\n        return ' '.join(reversed(s.split()))",
+      "point_value": 100,
+      "tags": [
+        "strings",
+        "functions",
+        "list comprehension"
+      ],
+      "elo_rating": 950.0,
+      "ref_time_sec": 120.0,
+      "source": "mbpp+gemma4",
+      "test_cases": [
+        {
+          "input": "reverse_words(\"python program\")",
+          "expected_output": "(\"program python\")",
+          "explanation": "",
+          "concept": "",
+          "is_hidden": false,
+          "points": 10
+        },
+        {
+          "input": "reverse_words(\"java language\")",
+          "expected_output": "(\"language java\")",
+          "explanation": "",
+          "concept": "",
+          "is_hidden": false,
+          "points": 10
+        },
+        {
+          "input": "reverse_words(\"indian man\")",
+          "expected_output": "(\"man indian\")",
+          "explanation": "",
+          "concept": "",
+          "is_hidden": false,
+          "points": 10
+        }
+      ]
+    },
+    {
+      "title": "Write a function to check if the given integer is a prime number",
+      "slug": "mbpp-605",
+      "description": "Write a function to check if the given integer is a prime number.",
+      "difficulty": "Easy",
+      "category": "Basics",
+      "question_type": "coding",
+      "entry_point": "prime_num",
+      "starter_code": "def prime_num():\n    # write your solution\n    pass",
+      "reference_solution": "def prime_num(num):\r\n  if num >=1:\r\n   for i in range(2, num//2):\r\n     if (num % i) == 0:\r\n                return False\r\n     else:\r\n                return True\r\n  else:\r\n          return False",
+      "point_value": 100,
+      "tags": [
+        "math",
+        "functions",
+        "loops"
+      ],
+      "elo_rating": 950.0,
+      "ref_time_sec": 120.0,
+      "source": "mbpp+gemma4",
+      "test_cases": [
+        {
+          "input": "prime_num(13)",
+          "expected_output": "True",
+          "explanation": "",
+          "concept": "",
+          "is_hidden": false,
+          "points": 10
+        },
+        {
+          "input": "prime_num(7)",
+          "expected_output": "True",
+          "explanation": "",
+          "concept": "",
+          "is_hidden": false,
+          "points": 10
+        },
+        {
+          "input": "prime_num(-1010)",
+          "expected_output": "False",
+          "explanation": "",
+          "concept": "",
+          "is_hidden": false,
+          "points": 10
+        }
+      ]
+    },
+    {
+      "title": "Write a function to convert degrees to radians",
+      "slug": "mbpp-606",
+      "description": "Write a function to convert degrees to radians.",
+      "difficulty": "Easy",
+      "category": "Basics",
+      "question_type": "coding",
+      "entry_point": "radian_degree",
+      "starter_code": "def radian_degree():\n    # write your solution\n    pass",
+      "reference_solution": "import math\r\ndef radian_degree(degree):\r\n radian = degree*(math.pi/180)\r\n return radian",
+      "point_value": 100,
+      "tags": [
+        "math",
+        "functions"
+      ],
+      "elo_rating": 950.0,
+      "ref_time_sec": 120.0,
+      "source": "mbpp+gemma4",
+      "test_cases": [
+        {
+          "input": "radian_degree(90)",
+          "expected_output": "1.5707963267948966",
+          "explanation": "",
+          "concept": "",
+          "is_hidden": false,
+          "points": 10
+        },
+        {
+          "input": "radian_degree(60)",
+          "expected_output": "1.0471975511965976",
+          "explanation": "",
+          "concept": "",
+          "is_hidden": false,
+          "points": 10
+        },
+        {
+          "input": "radian_degree(120)",
+          "expected_output": "2.0943951023931953",
+          "explanation": "",
+          "concept": "",
+          "is_hidden": false,
+          "points": 10
+        }
+      ]
+    },
+    {
+      "title": "Write a function to search a literals string in a string and also find the locat",
+      "slug": "mbpp-607",
+      "description": "Write a function to search a literals string in a string and also find the location within the original string where the pattern occurs by using regex.",
+      "difficulty": "Medium",
+      "category": "Basics",
+      "question_type": "coding",
+      "entry_point": "find_literals",
+      "starter_code": "def find_literals():\n    # write your solution\n    pass",
+      "reference_solution": "import re\r\npattern = 'fox'\r\ntext = 'The quick brown fox jumps over the lazy dog.'\r\ndef find_literals(text, pattern):\r\n  match = re.search(pattern, text)\r\n  s = match.start()\r\n  e = match.end()\r\n  return (match.re.pattern, s, e)",
+      "point_value": 100,
+      "tags": [
+        "regex",
+        "strings",
+        "functions"
+      ],
+      "elo_rating": 950.0,
+      "ref_time_sec": 120.0,
+      "source": "mbpp+gemma4",
+      "test_cases": [
+        {
+          "input": "find_literals('The quick brown fox jumps over the lazy dog.', 'fox')",
+          "expected_output": "('fox', 16, 19)",
+          "explanation": "",
+          "concept": "",
+          "is_hidden": false,
+          "points": 10
+        },
+        {
+          "input": "find_literals('Its been a very crazy procedure right', 'crazy')",
+          "expected_output": "('crazy', 16, 21)",
+          "explanation": "",
+          "concept": "",
+          "is_hidden": false,
+          "points": 10
+        },
+        {
+          "input": "find_literals('Hardest choices required strongest will', 'will')",
+          "expected_output": "('will', 35, 39)",
+          "explanation": "",
+          "concept": "",
+          "is_hidden": false,
+          "points": 10
+        }
+      ]
+    },
+    {
+      "title": "Write a python function to find nth bell number",
+      "slug": "mbpp-608",
+      "description": "Write a python function to find nth bell number.",
+      "difficulty": "Medium",
+      "category": "Basics",
+      "question_type": "coding",
+      "entry_point": "bell_Number",
+      "starter_code": "def bell_Number():\n    # write your solution\n    pass",
+      "reference_solution": "def bell_Number(n): \r\n    bell = [[0 for i in range(n+1)] for j in range(n+1)] \r\n    bell[0][0] = 1\r\n    for i in range(1, n+1):\r\n        bell[i][0] = bell[i-1][i-1]\r\n        for j in range(1, i+1): \r\n            bell[i][j] = bell[i-1][j-1] + bell[i][j-1] \r\n    return bell[n][0]",
+      "point_value": 100,
+      "tags": [
+        "math",
+        "recursion",
+        "functions"
+      ],
+      "elo_rating": 950.0,
+      "ref_time_sec": 120.0,
+      "source": "mbpp+gemma4",
+      "test_cases": [
+        {
+          "input": "bell_Number(2)",
+          "expected_output": "2",
+          "explanation": "",
+          "concept": "",
+          "is_hidden": false,
+          "points": 10
+        },
+        {
+          "input": "bell_Number(3)",
+          "expected_output": "5",
+          "explanation": "",
+          "concept": "",
+          "is_hidden": false,
+          "points": 10
+        },
+        {
+          "input": "bell_Number(4)",
+          "expected_output": "15",
+          "explanation": "",
+          "concept": "",
+          "is_hidden": false,
+          "points": 10
+        }
+      ]
+    },
+    {
+      "title": "Write a function to find the longest chain which can be formed from the given se",
+      "slug": "mbpp-601",
+      "description": "Write a function to find the longest chain which can be formed from the given set of pairs.",
+      "difficulty": "Medium",
+      "category": "Basics",
+      "question_type": "coding",
+      "entry_point": "max_chain_length",
+      "starter_code": "def max_chain_length():\n    # write your solution\n    pass",
+      "reference_solution": "class Pair(object): \r\n\tdef __init__(self, a, b): \r\n\t\tself.a = a \r\n\t\tself.b = b \r\ndef max_chain_length(arr, n): \r\n\tmax = 0\r\n\tmcl = [1 for i in range(n)] \r\n\tfor i in range(1, n): \r\n\t\tfor j in range(0, i): \r\n\t\t\tif (arr[i].a > arr[j].b and\r\n\t\t\t\tmcl[i] < mcl[j] + 1): \r\n\t\t\t\tmcl[i] = mcl[j] + 1\r\n\tfor i in range(n): \r\n\t\tif (max < mcl[i]): \r\n\t\t\tmax = mcl[i] \r\n\treturn max",
+      "point_value": 100,
+      "tags": [
+        "lists",
+        "sorting",
+        "graph"
+      ],
+      "elo_rating": 1050.0,
+      "ref_time_sec": 120.0,
+      "source": "mbpp+gemma4",
+      "test_cases": [
+        {
+          "input": "max_chain_length([Pair(5, 24), Pair(15, 25),Pair(27, 40), Pair(50, 60)], 4)",
+          "expected_output": "3",
+          "explanation": "",
+          "concept": "",
+          "is_hidden": false,
+          "points": 10
+        },
+        {
+          "input": "max_chain_length([Pair(1, 2), Pair(3, 4),Pair(5, 6), Pair(7, 8)], 4)",
+          "expected_output": "4",
+          "explanation": "",
+          "concept": "",
+          "is_hidden": false,
+          "points": 10
+        },
+        {
+          "input": "max_chain_length([Pair(19, 10), Pair(11, 12),Pair(13, 14), Pair(15, 16), Pair(31, 54)], 5)",
+          "expected_output": "5",
+          "explanation": "",
+          "concept": "",
+          "is_hidden": false,
+          "points": 10
+        }
+      ]
+    }
+  ]
+}

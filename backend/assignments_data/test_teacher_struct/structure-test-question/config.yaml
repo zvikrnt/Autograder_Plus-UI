@@ -1,8 +1,0 @@
-title: Structure Test Question
-slug: structure-test-question
-entry_point: test_func
-execution:
-  timeout_seconds: 1.5
-  memory_limit_mb: 128
-  language: python
-test_cases: []

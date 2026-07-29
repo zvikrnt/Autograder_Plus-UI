@@ -226,12 +226,30 @@ export const AuthProvider = ({ children }) => {
     dispatch({ type: AUTH_ACTIONS.CLEAR_ERROR });
   };
 
+  // Refresh current user from backend
+  const refreshUser = async () => {
+    try {
+      const response = await authService.getCurrentUser();
+      if (response.success) {
+        dispatch({
+          type: AUTH_ACTIONS.SET_USER,
+          payload: { user: response.data.user },
+        });
+        return { success: true, user: response.data.user };
+      }
+      return { success: false, error: response.message };
+    } catch (error) {
+      return { success: false, error: error.message };
+    }
+  };
+
   const value = {
     ...state,
     login,
     register,
     logout,
     updateUser,
+    refreshUser,
     clearError,
   };
 

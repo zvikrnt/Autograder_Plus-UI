@@ -47,7 +47,7 @@ const getDifficultyColor = (difficulty) => {
     case 'hard':
       return 'bg-red-100 text-red-700 border-red-200';
     default:
-      return 'bg-gray-100 text-gray-700 border-gray-200';
+      return 'bg-gray-100 dark:bg-gray-800 text-gray-700 border-gray-200 dark:border-gray-700';
   }
 };
 
@@ -73,7 +73,7 @@ const PracticeQuestionCard = ({ question, onEdit, onDelete }) => {
 
   return (
     <motion.div variants={itemVariants}>
-      <Card className="h-full hover:shadow-lg transition-all duration-300 border border-gray-200 hover:border-gray-300">
+      <Card className="h-full hover:shadow-lg transition-all duration-300 border border-gray-200 dark:border-gray-700 hover:border-gray-300">
         <CardHeader className="pb-3">
           <div className="flex items-start justify-between">
             <div className="flex-1 min-w-0">
@@ -128,7 +128,7 @@ const PracticeQuestionCard = ({ question, onEdit, onDelete }) => {
             </div>
           </div>
 
-          <div className="mt-4 pt-4 border-t border-gray-100">
+          <div className="mt-4 pt-4 border-t border-gray-100 dark:border-gray-800">
             <div className="flex items-center justify-between text-xs text-gray-400">
               <span>Created {new Date(question.created_at).toLocaleDateString()}</span>
               <span className={question.is_active ? 'text-green-600' : 'text-gray-400'}>
@@ -342,7 +342,7 @@ export default function PracticeQuestionManager() {
             </Button>
           </div>
         ) : filteredQuestions.length === 0 ? (
-          <div className="text-center py-20 bg-gray-50/50 border-2 border-dashed border-gray-200 rounded-xl">
+          <div className="text-center py-20 bg-gray-50/50 dark:bg-gray-900 border-2 border-dashed border-gray-200 dark:border-gray-700 rounded-xl">
             {questions.length === 0 ? (
               <>
                 <BookOpen className="w-16 h-16 text-gray-400 mx-auto mb-4" />

@@ -22,18 +22,22 @@ import { gamificationService } from '../../services/gamificationService';
 import { Button } from '../../components/ui/button';
 import JoinClassDialog from '../../components/features/student/JoinClassDialog';
 import RiveDashboardCharacter from '../../components/features/student/RiveDashboardCharacter';
-import { LeaderboardWidget, PointsDisplay, AchievementBadges } from '../../components/features/gamification';
+import { LeaderboardWidget, PointsDisplay, AchievementBadges, MarsBadge } from '../../components/features/gamification';
+import MarsLeaderboard from '../../components/features/analytics/MarsLeaderboard';
 
 // --- Components ---
 
 const ProgressBar = ({ progress, className = "" }) => (
-    <div className={`h-2 bg-gray-100 rounded-full overflow-hidden ${className}`}>
+    <div className={`h-2 bg-gray-100 dark:bg-gray-800 rounded-full overflow-hidden ${className}`}>
         <div
             className="h-full bg-gray-900 rounded-full transition-all duration-500 ease-out"
             style={{ width: `${progress}%` }}
         />
     </div>
 );
+
+const MotionDiv = motion.div;
+const MotionSection = motion.section;
 
 const StudentDashboard = () => {
     const navigate = useNavigate();
@@ -139,18 +143,23 @@ const StudentDashboard = () => {
         return text.slice(0, limit).trim() + '...';
     };
 
-    // Derived State: Sort by urgency (excluding submitted)
+    // Derived State: Sort by urgency (excluding submitted & past-due)
     const sortedAssignments = [...assignments]
-        .filter(a => !a.is_submitted)
+        .filter(a => {
+            if (a.is_submitted) return false;
+            const deadline = a.due_date || a.start_time;
+            return !deadline || new Date(deadline) >= new Date();
+        })
         .sort((a, b) => {
-            // Sort by due date (earliest first). Null due dates go last.
-            if (!a.due_date) return 1;
-            if (!b.due_date) return -1;
-            return new Date(a.due_date) - new Date(b.due_date);
+            const da = a.due_date || a.start_time;
+            const db = b.due_date || b.start_time;
+            if (!da) return 1;
+            if (!db) return -1;
+            return new Date(da) - new Date(db);
         });
 
     const activeAssignment = sortedAssignments[0];
-    const upNext = sortedAssignments.slice(1, 4);
+    const upNext = sortedAssignments.slice(1, 8);
 
     const MOMENTUM_STATS = analyticsData
         ? [
@@ -175,12 +184,25 @@ const StudentDashboard = () => {
                 color: "text-blue-500",
                 bg: "bg-blue-50",
             },
+            {
+                label: "This Week",
+                value: String(analyticsData.thisWeekActivity),
+                icon: TrendingUp,
+                color: "text-indigo-500",
+                bg: "bg-indigo-50",
+            },
         ]
         : [
             { label: "Day Streak", value: "—", icon: Flame, color: "text-orange-500", bg: "bg-orange-50" },
             { label: "Practice Solved", value: "—", icon: CheckCircle2, color: "text-green-500", bg: "bg-green-50" },
             { label: "Assignments Done", value: "—", icon: FileCode, color: "text-blue-500", bg: "bg-blue-50" },
+            { label: "This Week", value: "—", icon: TrendingUp, color: "text-indigo-500", bg: "bg-indigo-50" },
         ];
+
+    const hour = new Date().getHours();
+    const greeting = hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening";
+    const pendingCount = sortedAssignments.length;
+    const completedCount = analyticsData?.totalAssignmentsCompleted ?? assignments.filter((a) => a.is_submitted).length;
 
     if (loading) {
         return (
@@ -194,20 +216,27 @@ const StudentDashboard = () => {
 
     return (
         <StudentLayout refreshTrigger={sidebarRefreshKey}>
-            <div className="space-y-4 max-w-7xl mx-auto">
+            <div className="space-y-6 max-w-7xl mx-auto">
 
                 {/* 1. Header & Momentum Indicators */}
-                <header className="flex flex-col md:flex-row justify-between items-start md:items-end gap-6">
+                <header className="flex flex-col md:flex-row justify-between items-start md:items-start gap-6">
                     <div>
                         <h1 className="text-4xl font-extrabold tracking-tight text-gray-900">Workspace</h1>
-                        <p className="text-gray-500 mt-2 text-lg">Good afternoon! Ready to ship some code?</p>
+                        <p className="text-gray-500 mt-2 text-lg">
+                            {greeting}. {pendingCount > 0
+                                ? `You have ${pendingCount} pending assignment${pendingCount === 1 ? "" : "s"} and ${completedCount} completed.`
+                                : `You're all caught up with ${completedCount} completed assignment${completedCount === 1 ? "" : "s"}.`}
+                        </p>
                     </div>
 
                     <div className="flex items-center gap-4 flex-wrap">
+                        {/* MARS adaptive-practice rating */}
+                        <MarsBadge />
+
                         <Button
                             onClick={() => setIsJoinDialogOpen(true)}
                             variant="outline"
-                            className="gap-2 rounded-xl border-gray-200 hover:bg-gray-50 hover:border-gray-300 transition-all font-medium"
+                            className="gap-2 rounded-xl border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 hover:border-gray-300 dark:hover:border-gray-600 transition-all font-medium"
                         >
                             <Plus className="w-4 h-4" />
                             Join Class
@@ -224,17 +253,41 @@ const StudentDashboard = () => {
                     onJoinSuccess={handleJoinSuccess}
                 />
 
+                {error && (
+                    <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                        {error}
+                    </div>
+                )}
+
+                {/* Momentum Row */}
+                <section className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+                    {MOMENTUM_STATS.map(({ label, value, icon, color, bg }) => (
+                        <div
+                            key={label}
+                            className="bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-800 rounded-xl p-4 flex items-center justify-between hover:shadow-sm transition-shadow"
+                        >
+                            <div>
+                                <p className="text-xs text-gray-500 uppercase tracking-wide font-semibold">{label}</p>
+                                <p className="text-xl font-extrabold text-gray-900 mt-1">{value}</p>
+                            </div>
+                            <div className={`w-10 h-10 rounded-xl ${bg} flex items-center justify-center`}>
+                                {React.createElement(icon, { className: `w-5 h-5 ${color}` })}
+                            </div>
+                        </div>
+                    ))}
+                </section>
+
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
 
                     {/* LEFT COLUMN: Focus & Tasks */}
                     <div className="lg:col-span-2 space-y-8">
 
                         {/* 2. Hero Focus Card */}
-                        <motion.div
+                        <MotionDiv
                             initial={{ opacity: 0, y: 20 }}
                             animate={{ opacity: 1, y: 0 }}
                             transition={{ duration: 0.5 }}
-                            className="bg-white rounded-3xl p-0 shadow-lg shadow-indigo-100/50 border border-gray-100 relative overflow-hidden group hover:shadow-xl hover:shadow-indigo-100/60 transition-all duration-500"
+                            className="bg-white dark:bg-gray-800 rounded-3xl p-0 shadow-lg shadow-indigo-100/50 border border-gray-100 dark:border-gray-800 relative overflow-hidden group hover:shadow-xl hover:shadow-indigo-100/60 transition-all duration-500"
                         >
                             {/* Premium Gradient Background */}
                             <div className="absolute inset-0 bg-gradient-to-br from-white via-indigo-50/30 to-white opacity-80" />
@@ -248,10 +301,26 @@ const StudentDashboard = () => {
                                                 <span className="text-xs font-bold text-indigo-600 bg-indigo-50 px-3 py-1 rounded-full uppercase tracking-wider border border-indigo-100">
                                                     Current Priority
                                                 </span>
+                                                {activeAssignment.mode === 'exam' && (
+                                                    <span className="text-xs font-bold text-red-600 bg-red-50 px-3 py-1 rounded-full uppercase tracking-wider border border-red-100">
+                                                        Exam
+                                                    </span>
+                                                )}
+                                                {activeAssignment.type === 'quiz' && activeAssignment.mode !== 'exam' && (
+                                                    <span className="text-xs font-bold text-amber-600 bg-amber-50 px-3 py-1 rounded-full uppercase tracking-wider border border-amber-100">
+                                                        Quiz
+                                                    </span>
+                                                )}
                                                 {activeAssignment.due_date && (
                                                     <span className="text-xs font-semibold text-gray-400 flex items-center gap-1.5">
                                                         <Clock className="w-3.5 h-3.5" />
                                                         Due {new Date(activeAssignment.due_date).toLocaleDateString()}
+                                                    </span>
+                                                )}
+                                                {!activeAssignment.due_date && activeAssignment.start_time && (
+                                                    <span className="text-xs font-semibold text-gray-400 flex items-center gap-1.5">
+                                                        <Clock className="w-3.5 h-3.5" />
+                                                        Opens {new Date(activeAssignment.start_time).toLocaleDateString()}
                                                     </span>
                                                 )}
                                             </div>
@@ -263,7 +332,7 @@ const StudentDashboard = () => {
                                                 {activeAssignment.class_name || "Assignments"}
                                             </p>
 
-                                            <div className="grid grid-cols-2 gap-6 mb-8 bg-white/50 p-4 rounded-xl border border-gray-100">
+                                            <div className="grid grid-cols-2 gap-6 mb-8 bg-white/50 dark:bg-gray-800/50 p-4 rounded-xl border border-gray-100 dark:border-gray-800">
                                                 <div>
                                                     <span className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Points</span>
                                                     <span className="font-bold text-xl text-gray-900">{activeAssignment.points || 100}</span>
@@ -281,7 +350,7 @@ const StudentDashboard = () => {
                                                 onClick={() => handleStartAssignment(activeAssignment)}
                                                 className="w-full md:w-auto px-8 py-4 bg-gray-900 text-white rounded-xl font-bold hover:bg-black transition-all flex items-center justify-center gap-2 shadow-lg shadow-gray-200 hover:-translate-y-0.5"
                                             >
-                                                Start Assignment <ArrowRight className="w-4 h-4 font-bold" />
+                                                Start {activeAssignment.type === 'quiz' ? 'Quiz' : activeAssignment.mode === 'exam' ? 'Exam' : 'Assignment'} <ArrowRight className="w-4 h-4 font-bold" />
                                             </button>
                                         </>
                                     ) : (
@@ -298,11 +367,11 @@ const StudentDashboard = () => {
                                     <RiveDashboardCharacter />
                                 </div>
                             </div>
-                        </motion.div>
+                        </MotionDiv>
 
                         {/* 3. Up Next Queue */}
                         {upNext.length > 0 && (
-                            <motion.section
+                            <MotionSection
                                 initial={{ opacity: 0, y: 20 }}
                                 animate={{ opacity: 1, y: 0 }}
                                 transition={{ duration: 0.5, delay: 0.1 }}
@@ -311,7 +380,13 @@ const StudentDashboard = () => {
                                     <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
                                         <Clock className="w-5 h-5 text-gray-400" /> Up Next
                                     </h3>
-                                    <Button variant="link" className="text-indigo-600 font-semibold text-sm">View Calendar</Button>
+                                    <Button
+                                        variant="link"
+                                        className="text-indigo-600 font-semibold text-sm"
+                                        onClick={() => navigate("/student/calendar")}
+                                    >
+                                        View Calendar
+                                    </Button>
                                 </div>
 
                                 <div className="space-y-3">
@@ -319,20 +394,26 @@ const StudentDashboard = () => {
                                         <div key={task.id} className="relative group">
                                             {/* Connector Line */}
                                             {i !== upNext.length - 1 && (
-                                                <div className="absolute left-[26px] top-12 bottom-[-14px] w-0.5 bg-gray-100 z-0 group-hover:bg-indigo-50 transition-colors" />
+                                                <div className="absolute left-[26px] top-12 bottom-[-14px] w-0.5 bg-gray-100 dark:bg-gray-800 z-0 group-hover:bg-indigo-50 transition-colors" />
                                             )}
 
-                                            <div className="bg-white p-4 rounded-2xl border border-gray-100 flex items-center justify-between hover:border-indigo-100 hover:shadow-md transition-all relative z-10 group-hover:-translate-y-0.5 duration-300">
+                                            <div className="bg-white dark:bg-gray-800 p-4 rounded-2xl border border-gray-100 dark:border-gray-800 flex items-center justify-between hover:border-indigo-100 hover:shadow-md transition-all relative z-10 group-hover:-translate-y-0.5 duration-300">
                                                 <div className="flex items-center gap-4">
-                                                    <div className="w-14 h-14 rounded-xl bg-gray-50 flex flex-col items-center justify-center border border-gray-100 group-hover:bg-indigo-50 group-hover:border-indigo-100 transition-colors">
-                                                        <span className="text-xs font-semibold text-gray-400 uppercase group-hover:text-indigo-400">Due</span>
+                                                    <div className="w-14 h-14 rounded-xl bg-gray-50 dark:bg-gray-900 flex flex-col items-center justify-center border border-gray-100 dark:border-gray-800 group-hover:bg-indigo-50 group-hover:border-indigo-100 transition-colors">
+                                                        <span className="text-xs font-semibold text-gray-400 uppercase group-hover:text-indigo-400">{task.due_date ? 'Due' : 'Opens'}</span>
                                                         <span className="text-lg font-bold text-gray-900 group-hover:text-indigo-700">
-                                                            {new Date(task.due_date).getDate()}
+                                                            {new Date(task.due_date || task.start_time).getDate()}
                                                         </span>
                                                     </div>
                                                     <div>
                                                         <div className="flex items-center gap-2 mb-1">
                                                             <h4 className="font-bold text-gray-900 group-hover:text-indigo-700 transition-colors">{task.title}</h4>
+                                                            {task.mode === 'exam' && (
+                                                                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full border bg-red-50 text-red-700 border-red-100">Exam</span>
+                                                            )}
+                                                            {task.type === 'quiz' && task.mode !== 'exam' && (
+                                                                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full border bg-amber-50 text-amber-700 border-amber-100">Quiz</span>
+                                                            )}
                                                             <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${task.difficulty === 'Easy' ? 'bg-green-50 text-green-700 border-green-100' :
                                                                 task.difficulty === 'Medium' ? 'bg-amber-50 text-amber-700 border-amber-100' :
                                                                     'bg-red-50 text-red-700 border-red-100'
@@ -355,14 +436,14 @@ const StudentDashboard = () => {
                                         </div>
                                     ))}
                                 </div>
-                            </motion.section>
+                            </MotionSection>
                         )}
                     </div>
 
                     {/* RIGHT COLUMN: Skills & Coaching */}
-                    <div className="space-y-8">
+                    <div className="space-y-8 lg:sticky lg:top-20 self-start">
                         {/* Gamification Widgets */}
-                        <motion.div
+                        <MotionDiv
                             initial={{ opacity: 0, x: 20 }}
                             animate={{ opacity: 1, x: 0 }}
                             transition={{ duration: 0.5, delay: 0.2 }}
@@ -373,9 +454,18 @@ const StudentDashboard = () => {
                                 compact={true}
                                 className="shadow-lg shadow-gray-100/50"
                             />
-                        </motion.div>
+                        </MotionDiv>
 
-                        <motion.div
+                        {/* MARS adaptive-practice leaderboard */}
+                        <MotionDiv
+                            initial={{ opacity: 0, x: 20 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            transition={{ duration: 0.5, delay: 0.22 }}
+                        >
+                            <MarsLeaderboard />
+                        </MotionDiv>
+
+                        <MotionDiv
                             initial={{ opacity: 0, x: 20 }}
                             animate={{ opacity: 1, x: 0 }}
                             transition={{ duration: 0.5, delay: 0.25 }}
@@ -386,14 +476,14 @@ const StudentDashboard = () => {
                                 compact={true}
                                 className="shadow-lg shadow-gray-100/50"
                             />
-                        </motion.div>
+                        </MotionDiv>
 
                         {/* 5. AI Coach / Next Skill */}
-                        <motion.div
+                        <MotionDiv
                             initial={{ opacity: 0, x: 20 }}
                             animate={{ opacity: 1, x: 0 }}
                             transition={{ duration: 0.5, delay: 0.3 }}
-                            className="bg-white p-6 rounded-3xl border border-gray-100 shadow-lg shadow-gray-100/50 relative overflow-hidden"
+                            className="bg-white dark:bg-gray-800 p-6 rounded-3xl border border-gray-100 dark:border-gray-800 shadow-lg shadow-gray-100/50 relative overflow-hidden"
                         >
                             <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-50 rounded-full blur-3xl opacity-50 -translate-y-1/2 translate-x-1/2" />
 
@@ -416,19 +506,19 @@ const StudentDashboard = () => {
                                                 <span>Progress</span>
                                                 <span>{done}/{goal}</span>
                                             </div>
-                                            <ProgressBar progress={pct} className="bg-gray-100" />
+                                            <ProgressBar progress={pct} className="bg-gray-100 dark:bg-gray-800" />
                                         </div>
                                     );
                                 })()}
                             </div>
-                        </motion.div>
+                        </MotionDiv>
 
                         {/* 6. Recent Activity */}
-                        <motion.div
+                        <MotionDiv
                             initial={{ opacity: 0, x: 20 }}
                             animate={{ opacity: 1, x: 0 }}
                             transition={{ duration: 0.5, delay: 0.4 }}
-                            className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm"
+                            className="bg-white dark:bg-gray-800 p-6 rounded-3xl border border-gray-100 dark:border-gray-800 shadow-sm"
                         >
                             <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
                                 <TrendingUp className="w-5 h-5 text-indigo-500" /> Recent Activity
@@ -453,24 +543,24 @@ const StudentDashboard = () => {
                                     <p className="text-sm text-gray-400 text-center py-4 italic">No recent activity yet</p>
                                 )}
                             </div>
-                        </motion.div>
+                        </MotionDiv>
                     </div>
                 </div>
 
                 {/* Start Assignment Confirmation Modal */}
                 <AnimatePresence>
                     {showStartConfirmation && selectedAssignment && (
-                        <motion.div
+                        <MotionDiv
                             initial={{ opacity: 0 }}
                             animate={{ opacity: 1 }}
                             exit={{ opacity: 0 }}
                             className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-[1px]"
                         >
-                            <motion.div
+                            <MotionDiv
                                 initial={{ scale: 0.8, opacity: 0 }}
                                 animate={{ scale: 1, opacity: 1 }}
                                 exit={{ scale: 0.8, opacity: 0 }}
-                                className="bg-white p-8 rounded-2xl shadow-2xl text-center max-w-md w-full mx-4"
+                                className="bg-white dark:bg-gray-800 p-8 rounded-2xl shadow-2xl text-center max-w-md w-full mx-4"
                             >
                                 <div className="w-16 h-16 bg-indigo-100 rounded-full flex items-center justify-center mx-auto mb-4">
                                     <Timer className="w-8 h-8 text-indigo-600" />
@@ -519,8 +609,8 @@ const StudentDashboard = () => {
                                         {selectedAssignment.is_submitted ? 'View Submission' : `Start ${selectedAssignment.type === 'quiz' ? 'Quiz' : selectedAssignment.mode === 'exam' ? 'Exam' : 'Assignment'}`}
                                     </Button>
                                 </div>
-                            </motion.div>
-                        </motion.div>
+                            </MotionDiv>
+                        </MotionDiv>
                     )}
                 </AnimatePresence>
             </div>

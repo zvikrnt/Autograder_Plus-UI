@@ -1,0 +1,162 @@
+{
+  "questions": [
+    {
+      "title": "Sum Two Numbers",
+      "slug": "sum-two-numbers",
+      "description": "Write a function that takes two numbers as input and returns their sum.\n\n**Example:**\n- Input: 2, 3\n- Output: 5",
+      "difficulty": "Easy",
+      "category": "Basics",
+      "question_type": "coding",
+      "entry_point": "add",
+      "starter_code": "def add(a, b):\n    # Write your solution here\n    pass",
+      "reference_solution": "def add(a, b):\n    return a + b",
+      "point_value": 100,
+      "test_cases": [
+        {
+          "input": "2 3",
+          "expected_output": "5",
+          "explanation": "Basic case: 2 + 3 = 5",
+          "concept": "Arithmetic",
+          "is_hidden": false,
+          "points": 10
+        },
+        {
+          "input": "0 0",
+          "expected_output": "0",
+          "explanation": "Zero addition",
+          "concept": "Edge Case",
+          "is_hidden": false,
+          "points": 10
+        },
+        {
+          "input": "-5 5",
+          "expected_output": "0",
+          "explanation": "Negative numbers",
+          "concept": "Edge Case",
+          "is_hidden": false,
+          "points": 10
+        },
+        {
+          "input": "100 200",
+          "expected_output": "300",
+          "explanation": "Larger numbers",
+          "concept": "Basic",
+          "is_hidden": true,
+          "points": 10
+        }
+      ]
+    },
+    {
+      "title": "Count Vowels",
+      "slug": "count-vowels",
+      "description": "Write a function that counts the number of vowels in a given string. Case-insensitive.\n\nVowels are: a, e, i, o, u",
+      "difficulty": "Easy",
+      "category": "Strings",
+      "question_type": "coding",
+      "entry_point": "count_vowels",
+      "starter_code": "def count_vowels(s):\n    # Count vowels in string s\n    pass",
+      "reference_solution": "def count_vowels(s):\n    vowels = 'aeiouAEIOU'\n    return sum(1 for char in s if char in vowels)",
+      "point_value": 100,
+      "test_cases": [
+        {
+          "input": "Hello World",
+          "expected_output": "3",
+          "explanation": "e, o, o = 3 vowels",
+          "concept": "String Traversal",
+          "is_hidden": false,
+          "points": 10
+        },
+        {
+          "input": "AEIOU",
+          "expected_output": "5",
+          "explanation": "All uppercase vowels",
+          "concept": "Case Insensitivity",
+          "is_hidden": false,
+          "points": 10
+        },
+        {
+          "input": "xyz",
+          "expected_output": "0",
+          "explanation": "No vowels",
+          "concept": "Edge Case",
+          "is_hidden": false,
+          "points": 10
+        },
+        {
+          "input": "Autograder is awesome",
+          "expected_output": "8",
+          "explanation": "A, u, o, a, e, i, e, o = 8 vowels",
+          "concept": "Complex String",
+          "is_hidden": true,
+          "points": 10
+        }
+      ]
+    },
+    {
+      "title": "Reverse String",
+      "slug": "reverse-string",
+      "description": "Write a function that reverses a string.",
+      "difficulty": "Easy",
+      "category": "Strings",
+      "question_type": "coding",
+      "entry_point": "reverse_string",
+      "starter_code": "def reverse_string(s):\n    pass",
+      "reference_solution": "def reverse_string(s):\n    return s[::-1]",
+      "point_value": 100,
+      "test_cases": [
+        {
+          "input": "hello",
+          "expected_output": "olleh",
+          "explanation": "Simple string reversal",
+          "concept": "String Manipulation",
+          "is_hidden": false,
+          "points": 10
+        },
+        {
+          "input": "a",
+          "expected_output": "a",
+          "explanation": "Single character",
+          "concept": "Edge Case",
+          "is_hidden": false,
+          "points": 10
+        },
+        {
+          "input": "12345",
+          "expected_output": "54321",
+          "explanation": "Number string",
+          "concept": "Basic",
+          "is_hidden": false,
+          "points": 10
+        }
+      ]
+    },
+    {
+      "title": "Python Basics - Data Types",
+      "slug": "python-mcq-datatypes",
+      "description": "What is the output of the following Python code?\n\n```python\nx = [1, 2, 3]\ny = x\nx.append(4)\nprint(len(y))\n```",
+      "difficulty": "Medium",
+      "category": "MCQ",
+      "question_type": "mcq",
+      "test_cases": [
+        {
+          "correct_option": 0,
+          "points": 10
+        }
+      ]
+    },
+    {
+      "title": "List Comprehension",
+      "slug": "python-mcq-list-comp",
+      "description": "What will be the result of the following expression?\n\n```python\nresult = [x**2 for x in range(5) if x % 2 == 0]\nprint(result)\n```",
+      "difficulty": "Medium",
+      "category": "MCQ",
+      "question_type": "mcq",
+      "test_cases": [
+        {
+          "correct_option": 1,
+          "points": 10
+        }
+      ]
+    }
+  ]
+}

@@ -151,7 +151,30 @@ venv/
 backend/submissions_data/
 backend/media/
 backend/ai_staging/
+backend/assignments_data/
 
 # Local System Config
 autograder-daphne.service
+
+# Sensitive user data
+backend/all_users.txt
+
+# Celery runtime state (regenerated on every start, never source)
+backend/celerybeat-schedule*
+backend/*.bak-*
+
+# Ad hoc debug/investigation scripts and session notes (not app code)
+backend/scripts/investigate_*.py
+backend/scripts/fix_*.py
+backend/scripts/audit_score.py
+backend/scripts/calc_test.py
+backend/scripts/check_progress.py
+backend/scripts/check_tc.py
+backend/scripts/recalc_grades.py
+backend/smoke_cluster_test.py
+/check_db.py
+/check_tokens.py
+frontend/fix_dashboard.py
+/changed_bugs.md
+/final_report.md
 

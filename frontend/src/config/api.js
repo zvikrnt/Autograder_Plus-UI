@@ -1,7 +1,7 @@
 // API Configuration
 export const API_CONFIG = {
   BASE_URL: import.meta.env.VITE_API_BASE_URL || "/api",
-  TIMEOUT: 30000, // 30 seconds — large analytics payloads need more time
+  TIMEOUT: 120000, // 120 seconds — file uploads and analytics need more time
 
   // WebSocket Configuration
   WS_BASE_URL:
@@ -15,6 +15,7 @@ export const API_CONFIG = {
       ME: "/users/me/", // Use working function-based view
       UPDATE_ME: "/users/update_me/",
       SETTINGS: "/users/settings/",
+      AVATAR: "/users/avatar/",
       REQUEST_PASSWORD_RESET: "/users/request_password_reset/",
       RESET_PASSWORD_CONFIRM: "/users/reset_password_confirm/",
     },
@@ -31,10 +32,12 @@ export const API_CONFIG = {
       LIST: "/assignments/",
       DETAIL: (id) => `/assignments/${id}/`,
       AI_ANALYSIS_TASKS: "/assignments/ai-analysis-tasks/",
+      CLUSTER_GRADING_TASKS: "/assignments/cluster-grading-tasks/",
       PUBLISH: (id) => `/assignments/${id}/publish/`,
       CLOSE: (id) => `/assignments/${id}/close/`,
       QUESTIONS: "/assignments/questions/",
       QUESTION_DETAIL: (id) => `/assignments/questions/${id}/`,
+      QUESTIONS_BULK_IMPORT: "/assignments/questions/bulk-import/",
     },
     // Submissions
     SUBMISSIONS: {

@@ -23,6 +23,13 @@ PIDS=()
 # Absolute path to project root regardless of where start.sh is invoked from
 PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
+LOCK_FILE="/tmp/autograder-start.lock"
+exec 9>"$LOCK_FILE"
+if ! flock -n 9; then
+    err "Autograder+ startup is already running. Stop the existing start.sh process before starting another copy."
+    exit 1
+fi
+
 cleanup() {
     echo ""
     warn "Shutting down all services..."
@@ -30,7 +37,7 @@ cleanup() {
         kill "$pid" 2>/dev/null
     done
     # Also kill anything still on our ports
-    fuser -k 8000/tcp 2>/dev/null
+    fuser -k 8007/tcp 2>/dev/null
     fuser -k 5173/tcp 2>/dev/null
     ok "All services stopped."
     exit 0
@@ -38,8 +45,8 @@ cleanup() {
 trap cleanup SIGINT SIGTERM
 
 # ─── 1. Kill anything already on our ports ────────────────────────────────────
-log "Freeing ports 8000 and 5173..."
-fuser -k 8000/tcp 2>/dev/null && warn "Killed process on port 8000"
+log "Freeing ports 8007 and 5173..."
+fuser -k 8007/tcp 2>/dev/null && warn "Killed process on port 8007"
 fuser -k 5173/tcp 2>/dev/null && warn "Killed process on port 5173"
 # Also kill any stale celery workers from previous runs
 pkill -f "celery.*autograder" 2>/dev/null && warn "Killed stale Celery workers"
@@ -129,7 +136,7 @@ fi
 #   cp autograder-daphne.service ~/.config/systemd/user/
 #   systemctl --user enable --now autograder-daphne
 #   journalctl --user -u autograder-daphne -f
-log "Starting Django backend (Daphne on port 8000) with watchdog..."
+log "Starting Django backend (Daphne on port 8007) with watchdog..."
 
 daphne_watchdog() {
     # Use absolute path so cwd is never ambiguous after a crash-restart
@@ -137,7 +144,7 @@ daphne_watchdog() {
     local DAPHNE_BIN="${PROJECT_DIR}/venv/bin/daphne"
     while true; do
         echo "[watchdog] Starting Daphne..."
-        cd "${BACKEND_DIR}" && "${DAPHNE_BIN}" -b 0.0.0.0 -p 8000 autograder.asgi:application 2>&1
+        cd "${BACKEND_DIR}" && "${DAPHNE_BIN}" -b 0.0.0.0 -p 8007 autograder.asgi:application 2>&1
         EXIT_CODE=$?
         echo "[watchdog] Daphne exited (code $EXIT_CODE). Restarting in 3s..."
         sleep 3
@@ -182,7 +189,6 @@ log "Starting AI analysis Celery worker (concurrency=1, sequential GPU)..."
 (cd backend && PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True celery -A autograder worker \
     --loglevel=info \
     --concurrency=1 \
-    --max-memory-per-child=2000000 \
     --queues=ai_analysis \
     --hostname=ai@%h \
     --logfile=/tmp/celery_ai.log 2>&1) &
@@ -245,7 +251,7 @@ echo ""
 echo -e "${GREEN}╔══════════════════════════════════════════════════╗${NC}"
 echo -e "${GREEN}║  All services started successfully!              ║${NC}"
 echo -e "${GREEN}╠══════════════════════════════════════════════════╣${NC}"
-echo -e "${GREEN}║  Backend  →  http://localhost:8000               ║${NC}"
+echo -e "${GREEN}║  Backend  →  http://localhost:8007               ║${NC}"
 echo -e "${GREEN}║  Frontend →  http://localhost:5173               ║${NC}"
 echo -e "${GREEN}║  Celery   →  /tmp/celery.log                     ║${NC}"
 echo -e "${GREEN}║  Beat     →  /tmp/celery_beat.log                ║${NC}"

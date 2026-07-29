@@ -28,7 +28,7 @@ const ForgotPassword = () => {
     };
 
     return (
-        <div className="flex min-h-screen w-full bg-white">
+        <div className="flex min-h-screen w-full bg-white dark:bg-gray-800">
             {/* Left Side - Animation & Branding */}
             <div className="hidden lg:flex lg:w-1/2 relative bg-[#f9fafb] items-center justify-center overflow-hidden">
                 <div className="absolute top-8 left-8">
@@ -45,7 +45,7 @@ const ForgotPassword = () => {
             </div>
 
             {/* Right Side - Form */}
-            <div className="w-full lg:w-1/2 flex items-center justify-center p-8 md:p-12 lg:p-24 bg-white">
+            <div className="w-full lg:w-1/2 flex items-center justify-center p-8 md:p-12 lg:p-24 bg-white dark:bg-gray-800">
                 <div className="w-full max-w-md space-y-8">
                     <div className="text-center lg:text-left space-y-2">
                         <h2 className="text-3xl md:text-4xl font-extrabold text-gray-900 tracking-tight">
@@ -76,7 +76,7 @@ const ForgotPassword = () => {
                                         required
                                         value={email}
                                         onChange={(e) => setEmail(e.target.value)}
-                                        className="block w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-50 shadow-sm transition-all duration-200 placeholder-gray-400 outline-none"
+                                        className="block w-full px-4 py-3 rounded-xl border border-gray-200 dark:border-gray-700 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-50 shadow-sm transition-all duration-200 placeholder-gray-400 dark:placeholder-gray-500 outline-none"
                                         placeholder="Enter your email"
                                     />
                                 </div>

@@ -14,6 +14,7 @@ import { Card, CardContent } from "../../ui/card";
 import { Badge } from "../../ui/badge";
 
 import { assignmentService } from "../../../services/assignmentService";
+import { submissionService } from "../../../services/submissionService";
 
 export default function StudentClassworkTab({ classId }) {
     const navigate = useNavigate();
@@ -22,15 +23,37 @@ export default function StudentClassworkTab({ classId }) {
     const [showStartConfirmation, setShowStartConfirmation] = useState(false);
     const [selectedAssignment, setSelectedAssignment] = useState(null);
     const [showFullDescription, setShowFullDescription] = useState(false);
+    const [gradebookStatusMap, setGradebookStatusMap] = useState({});
 
     useEffect(() => {
         const fetchAssignments = async () => {
             try {
                 setLoading(true);
-                const response = await assignmentService.getClassAssignments(classId);
+                const [response, gradebookRes] = await Promise.all([
+                    assignmentService.getClassAssignments(classId),
+                    submissionService.getGradebookEntries()
+                ]);
                 const data = Array.isArray(response.data) ? response.data : (response.data.results || []);
+                const gradebookRows = Array.isArray(gradebookRes.data) ? gradebookRes.data : (gradebookRes.data?.results || []);
+                const statusByAssignment = {};
+                gradebookRows.forEach((entry) => {
+                    if (entry?.content_item) {
+                        statusByAssignment[String(entry.content_item)] = entry.status;
+                    }
+                });
+
+                const hydrated = data.map((item) => {
+                    const gradeStatus = statusByAssignment[String(item.id)];
+                    return {
+                        ...item,
+                        is_graded: gradeStatus === "graded",
+                        is_submitted: gradeStatus === "submitted" || gradeStatus === "graded",
+                    };
+                });
+
                 console.log('StudentClassworkTab - Assignments fetched:', data.map(a => ({ id: a.id, title: a.title, type: a.type, mode: a.mode })));
-                setAssignments(data);
+                setGradebookStatusMap(statusByAssignment);
+                setAssignments(hydrated);
             } catch (err) {
                 console.error("Failed to load assignments:", err);
             } finally {
@@ -118,14 +141,34 @@ export default function StudentClassworkTab({ classId }) {
                                         {getTypeBadge(assignment)}
                                         {getStatusBadge(assignment)}
                                     </div>
-                                    <div className="text-xs text-gray-500 flex gap-3">
+                                    <div className="text-xs text-gray-500 flex gap-3 flex-wrap">
+                                        {assignment.start_time && (
+                                            <span>Starts: {new Date(assignment.start_time).toLocaleDateString()}</span>
+                                        )}
                                         <span>Due: {new Date(assignment.due_date).toLocaleDateString()}</span>
+                                        {assignment.duration_minutes && (
+                                            <span>• {assignment.duration_minutes} min</span>
+                                        )}
                                         <span>• {assignment.points_total || assignment.points} pts</span>
                                     </div>
                                 </div>
                                 <Button variant="ghost" size="icon" className="text-gray-300 group-hover:text-indigo-600">
                                     <ArrowRight className="w-5 h-5" />
                                 </Button>
+                                {(gradebookStatusMap[String(assignment.id)] === "graded" || assignment.is_graded) && (
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        className="ml-2"
+                                        onClick={(e) => {
+                                            e.preventDefault();
+                                            e.stopPropagation();
+                                            navigate(`/student/assignment/${assignment.id}/report`);
+                                        }}
+                                    >
+                                        View Report
+                                    </Button>
+                                )}
                             </CardContent>
                         </div>
                     </Card>
@@ -174,10 +217,22 @@ export default function StudentClassworkTab({ classId }) {
                                     )}
                                 </div>
                             ) : null}
-                            <p className="text-gray-500 mb-6">
-                                Once you start, the timer will begin and you can only exit by submitting your solution. 
-                                Are you ready to begin?
-                            </p>
+                            {selectedAssignment.start_time && new Date(selectedAssignment.start_time) > new Date() ? (
+                                <p className="text-amber-600 mb-4 font-medium">
+                                    This {selectedAssignment.type === 'quiz' ? 'quiz' : selectedAssignment.mode === 'exam' ? 'exam' : 'assignment'} starts at{' '}
+                                    {new Date(selectedAssignment.start_time).toLocaleString()}
+                                </p>
+                            ) : (
+                                <div className="text-left text-sm text-gray-600 mb-4 space-y-1">
+                                    {selectedAssignment.duration_minutes && (
+                                        <p>⏱ You have <strong>{selectedAssignment.duration_minutes} minutes</strong> to complete this {selectedAssignment.type === 'quiz' ? 'quiz' : selectedAssignment.mode === 'exam' ? 'exam' : 'assignment'}.</p>
+                                    )}
+                                    <p>
+                                        Once you start, the timer will begin and you can only exit by submitting your solution. 
+                                        Are you ready to begin?
+                                    </p>
+                                </div>
+                            )}
                             <div className="flex gap-3">
                                 <Button 
                                     variant="outline" 
@@ -188,8 +243,12 @@ export default function StudentClassworkTab({ classId }) {
                                 </Button>
                                 <Button 
                                     onClick={handleConfirmStart}
+                                    disabled={selectedAssignment.start_time && new Date(selectedAssignment.start_time) > new Date()}
                                     className={`flex-1 text-white ${selectedAssignment.is_submitted ? 'bg-green-600 hover:bg-green-700' : selectedAssignment.mode === 'exam' ? 'bg-red-600 hover:bg-red-700' : 'bg-indigo-600 hover:bg-indigo-700'}`}>
-                                    {selectedAssignment.is_submitted ? 'View Submission' : `Start ${selectedAssignment.type === 'quiz' ? 'Quiz' : selectedAssignment.mode === 'exam' ? 'Exam' : 'Assignment'}`}
+                                    {selectedAssignment.start_time && new Date(selectedAssignment.start_time) > new Date()
+                                        ? `Starts ${new Date(selectedAssignment.start_time).toLocaleDateString()}`
+                                        : selectedAssignment.is_submitted ? 'View Submission' : `Start ${selectedAssignment.type === 'quiz' ? 'Quiz' : selectedAssignment.mode === 'exam' ? 'Exam' : 'Assignment'}`
+                                    }
                                 </Button>
                             </div>
                         </motion.div>

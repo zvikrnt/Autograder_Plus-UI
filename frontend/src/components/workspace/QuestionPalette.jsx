@@ -31,11 +31,11 @@ const QuestionPalette = ({
 
         return isActive
             ? "bg-indigo-600 text-white shadow-md scale-110"
-            : "hover:bg-gray-200 text-gray-600";
+            : "hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-600";
     };
 
     return (
-        <div className="flex items-center gap-1 bg-gray-100 p-1 rounded-lg">
+        <div className="flex items-center gap-1 bg-gray-100 dark:bg-gray-800 p-1 rounded-lg">
             {/* Previous Button */}
             <Button
                 variant="ghost"

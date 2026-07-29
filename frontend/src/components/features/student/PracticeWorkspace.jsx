@@ -229,7 +229,7 @@ const PracticeWorkspace = () => {
     };
 
     const getTimerBg = () => {
-        if (timeLeft === null || !question) return 'bg-gray-100';
+        if (timeLeft === null || !question) return 'bg-gray-100 dark:bg-gray-800';
         const diff = (question.difficulty || 'medium').toLowerCase();
         const limit = DIFFICULTY_TIME_LIMITS[diff] || DEFAULT_TIME_LIMIT;
         const pct = timeLeft / limit;
@@ -480,7 +480,7 @@ const PracticeWorkspace = () => {
 
     if (loading) {
         return (
-            <div className="flex h-screen items-center justify-center bg-gray-50">
+            <div className="flex h-screen items-center justify-center bg-gray-50 dark:bg-gray-900">
                 <div className="text-center">
                     <Loader2 className="w-10 h-10 animate-spin text-indigo-600 mx-auto mb-4" />
                     <p className="text-gray-500 font-medium">Loading practice question...</p>
@@ -491,7 +491,7 @@ const PracticeWorkspace = () => {
 
     if (error || !question) {
         return (
-            <div className="flex h-screen items-center justify-center bg-gray-50">
+            <div className="flex h-screen items-center justify-center bg-gray-50 dark:bg-gray-900">
                 <div className="text-center">
                     <XCircle className="w-12 h-12 text-red-500 mx-auto mb-4" />
                     <h2 className="text-xl font-bold text-gray-900 mb-2">Error Loading Question</h2>
@@ -506,19 +506,19 @@ const PracticeWorkspace = () => {
     const isCompleted = progress?.is_completed || false;
 
     return (
-        <div className="flex flex-col h-screen bg-gray-50 text-gray-900 font-sans overflow-hidden">
+        <div className="flex flex-col h-screen bg-gray-50 dark:bg-gray-900 text-gray-900 font-sans overflow-hidden">
 
             {/* Anti-Cheat Fullscreen Blocking Overlay */}
             {!isCompleted && !loading && !error && question && !isFullscreen && (
                 <div className="fixed inset-0 z-50 bg-gray-900/90 backdrop-blur-sm flex flex-col items-center justify-center p-6 text-center">
-                    <div className="bg-white rounded-xl shadow-2xl p-8 max-w-md w-full border-t-4 border-indigo-600">
+                    <div className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl p-8 max-w-md w-full border-t-4 border-indigo-600">
                         <div className="w-16 h-16 bg-indigo-100 rounded-full flex items-center justify-center mx-auto mb-4">
                             <Target className="w-8 h-8 text-indigo-600 animate-pulse" />
                         </div>
                         <h2 className="text-2xl font-bold text-gray-900 mb-2">Practice Focus Mode</h2>
                         <div className="text-gray-600 text-sm mb-6 space-y-2">
                             <p>This practice session runs in a focused environment.</p>
-                            <ul className="text-left bg-gray-50 p-3 rounded-lg border border-gray-100 space-y-1 text-xs">
+                            <ul className="text-left bg-gray-50 dark:bg-gray-900 p-3 rounded-lg border border-gray-100 dark:border-gray-800 space-y-1 text-xs">
                                 <li>• You must remain in Fullscreen mode.</li>
                                 <li>• Switching tabs or windows is recorded.</li>
                                 <li>• 3 warnings will result in auto-submission & exit.</li>
@@ -538,7 +538,7 @@ const PracticeWorkspace = () => {
             {/* Anti-Cheat Warning Modal */}
             {warningModal && (
                 <div className="fixed inset-0 z-[60] bg-black/70 flex items-center justify-center p-4">
-                    <div className={`bg-white rounded-xl shadow-2xl p-6 max-w-sm w-full border-t-4 ${warningModal.isFinal ? 'border-red-600' : 'border-amber-500'}`}>
+                    <div className={`bg-white dark:bg-gray-800 rounded-xl shadow-2xl p-6 max-w-sm w-full border-t-4 ${warningModal.isFinal ? 'border-red-600' : 'border-amber-500'}`}>
                         <div className={`w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-4 ${warningModal.isFinal ? 'bg-red-100' : 'bg-amber-100'}`}>
                             <span className="text-2xl">{warningModal.isFinal ? '🚨' : '⚠️'}</span>
                         </div>
@@ -574,7 +574,7 @@ const PracticeWorkspace = () => {
             )}
 
             {/* Header */}
-            <header className="h-14 bg-white border-b border-gray-200 flex items-center justify-between px-4 z-20 shadow-sm flex-shrink-0">
+            <header className="h-14 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between px-4 z-20 shadow-sm flex-shrink-0">
                 <div className="flex items-center gap-4">
                     <Button
                         variant="ghost"
@@ -615,7 +615,7 @@ const PracticeWorkspace = () => {
                         </div>
                     )}
                     {isCompleted && (
-                        <div className="flex items-center gap-1.5 px-3 py-1 rounded-lg border bg-gray-50 text-xs text-gray-500">
+                        <div className="flex items-center gap-1.5 px-3 py-1 rounded-lg border bg-gray-50 dark:bg-gray-900 text-xs text-gray-500">
                             <Timer className="w-3.5 h-3.5" />
                             <span>Spent: {formatTime(elapsed)}</span>
                         </div>
@@ -626,7 +626,7 @@ const PracticeWorkspace = () => {
                             size="sm"
                             onClick={handleRunCode}
                             disabled={isRunning || isSubmitting}
-                            className="bg-gray-100 hover:bg-gray-200 text-gray-700 h-9"
+                            className="bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 h-9"
                         >
                             {isRunning ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Play className="w-4 h-4 mr-2" />}
                             Run
@@ -648,7 +648,7 @@ const PracticeWorkspace = () => {
             {/* Main Workspace */}
             <div className="flex-1 w-full overflow-hidden flex">
                 {/* Left Panel: Description */}
-                <div className="w-[35%] min-w-[300px] max-w-[600px] bg-white border-r border-gray-200 flex flex-col h-full">
+                <div className="w-[35%] min-w-[300px] max-w-[600px] bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 flex flex-col h-full">
                     <div className="flex-1 overflow-y-auto p-6">
                         <div className="mb-6">
                             <div className="flex items-center gap-2 mb-4">
@@ -660,7 +660,7 @@ const PracticeWorkspace = () => {
 
                             {question.category && (
                                 <div className="mb-4">
-                                    <Badge variant="outline" className="text-gray-600 border-gray-200">
+                                    <Badge variant="outline" className="text-gray-600 border-gray-200 dark:border-gray-700">
                                         {question.category.charAt(0).toUpperCase() + question.category.slice(1)}
                                     </Badge>
                                 </div>
@@ -678,7 +678,7 @@ const PracticeWorkspace = () => {
                             <h3 className="text-sm font-semibold text-gray-900 mb-3">Example Test Cases</h3>
                             <div className="space-y-3">
                                 {testCases.slice(0, 2).map((tc, idx) => (
-                                    <div key={idx} className="bg-gray-50 rounded-lg p-3 text-xs font-mono border border-gray-200">
+                                    <div key={idx} className="bg-gray-50 dark:bg-gray-900 rounded-lg p-3 text-xs font-mono border border-gray-200 dark:border-gray-700">
                                         <div className="grid grid-cols-2 gap-2 mb-1">
                                             <span className="text-gray-500">Input:</span>
                                             <span className="text-gray-900">{tc.input !== undefined ? tc.input : (tc.concept || "N/A")}</span>
@@ -711,7 +711,7 @@ const PracticeWorkspace = () => {
 
                         {/* Hint */}
                         {question.hint && (
-                            <div className="mt-6 border-t border-gray-100 pt-4">
+                            <div className="mt-6 border-t border-gray-100 dark:border-gray-800 pt-4">
                                 <button
                                     onClick={() => setShowHint(!showHint)}
                                     className="flex items-center gap-2 text-sm font-medium text-indigo-600 hover:text-indigo-700"
@@ -734,10 +734,10 @@ const PracticeWorkspace = () => {
                 </div>
 
                 {/* Right Panel: Editor & Output */}
-                <div className="flex-1 bg-white flex flex-col h-full">
+                <div className="flex-1 bg-white dark:bg-gray-800 flex flex-col h-full">
                     {/* Editor */}
                     {question?.question_type === 'mcq' ? (
-                        <div className="flex-[60] min-h-0 flex flex-col bg-white overflow-hidden border-b border-gray-200">
+                        <div className="flex-[60] min-h-0 flex flex-col bg-white dark:bg-gray-800 overflow-hidden border-b border-gray-200 dark:border-gray-700">
                             <McqWorkspaceRenderer
                                 question={question}
                                 selectedOption={selectedMcqOption}
@@ -815,8 +815,8 @@ const PracticeWorkspace = () => {
 
                     {/* Output Console */}
                     {question?.question_type !== 'mcq' && (
-                        <div className="flex-[40] min-h-0 bg-white flex flex-col">
-                            <div className="h-9 bg-gray-50 border-b border-gray-200 flex items-center justify-between px-4 select-none flex-shrink-0">
+                        <div className="flex-[40] min-h-0 bg-white dark:bg-gray-800 flex flex-col">
+                            <div className="h-9 bg-gray-50 dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between px-4 select-none flex-shrink-0">
                                 <div className="flex items-center gap-2">
                                     <div className="flex items-center gap-2 text-gray-500 font-medium text-xs">
                                         <Terminal className="w-3.5 h-3.5" />
@@ -873,7 +873,7 @@ const PracticeWorkspace = () => {
                                         {output.results && output.results.length > 0 && (
                                             <div className="space-y-3">
                                                 {output.results.map((result, idx) => (
-                                                    <div key={idx} className="border border-gray-200 rounded-lg overflow-hidden">
+                                                    <div key={idx} className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
                                                         <div className={`px-4 py-2 border-b ${result.testPassed ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'
                                                             }`}>
                                                             <h3 className={`font-semibold text-sm flex items-center gap-2 ${result.testPassed ? 'text-green-800' : 'text-red-800'
@@ -892,7 +892,7 @@ const PracticeWorkspace = () => {
                                                             {result.input && (
                                                                 <div>
                                                                     <div className="text-xs font-semibold text-gray-500 mb-1">INPUT:</div>
-                                                                    <div className="bg-gray-100 p-2 rounded text-sm font-mono border">
+                                                                    <div className="bg-gray-100 dark:bg-gray-800 p-2 rounded text-sm font-mono border">
                                                                         {result.input}
                                                                     </div>
                                                                 </div>
@@ -959,7 +959,7 @@ const PracticeWorkspace = () => {
                         <motion.div
                             initial={{ scale: 0.8, opacity: 0 }}
                             animate={{ scale: 1, opacity: 1 }}
-                            className="bg-white p-8 rounded-2xl shadow-2xl text-center max-w-md w-full mx-4"
+                            className="bg-white dark:bg-gray-800 p-8 rounded-2xl shadow-2xl text-center max-w-md w-full mx-4"
                         >
                             <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
                                 <Trophy className="w-8 h-8 text-green-600" />

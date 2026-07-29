@@ -9,7 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "../../components/ui/ta
 import StreamTab from "../../components/features/teacher/StreamTab";
 import ClassworkTab from "../../components/features/teacher/ClassworkTab";
 import PeopleTab from "../../components/features/teacher/PeopleTab";
-import MarksTab from "../../components/features/teacher/MarksTab";
+import MarksTabV2 from "../../components/features/teacher/MarksTabV2";
 import { classService } from "../../services/classService";
 
 export default function ClassPage() {
@@ -68,7 +68,7 @@ export default function ClassPage() {
             <motion.div
                 initial={{ opacity: 0, y: -20 }}
                 animate={{ opacity: 1, y: 0 }}
-                className="space-y-6"
+                className="space-y-6 max-w-5xl mx-auto px-4"
             >
                 {/* Header */}
                 <div className="flex flex-col gap-4 md:flex-row md:items-center justify-between">
@@ -91,14 +91,19 @@ export default function ClassPage() {
 
                 {/* Class Tabs */}
                 <Tabs defaultValue="stream" className="w-full" onValueChange={setActiveTab}>
-                    <TabsList className="bg-transparent p-0 border-b w-full justify-start h-auto rounded-none mb-6">
-                        {["stream", "classwork", "people", "marks"].map((tab) => (
+                    <TabsList className="bg-transparent p-0 border-b w-full justify-start h-auto rounded-none mb-6 overflow-x-auto">
+                        {[
+                            { key: "stream", label: "Stream" },
+                            { key: "classwork", label: "Classwork" /* no count available */ },
+                            { key: "people", label: "People" },
+                            { key: "marks", label: "Marks" },
+                        ].map((tab) => (
                             <TabsTrigger
-                                key={tab}
-                                value={tab}
-                                className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-indigo-600 rounded-none px-4 pb-3 pt-2 text-sm font-medium text-gray-500 data-[state=active]:text-indigo-600 transition-colors capitalize"
+                                key={tab.key}
+                                value={tab.key}
+                                className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-indigo-600 rounded-none px-4 pb-3 pt-2 text-sm font-medium text-gray-500 data-[state=active]:text-indigo-600 transition-colors capitalize whitespace-nowrap"
                             >
-                                {tab}
+                                {tab.label}
                             </TabsTrigger>
                         ))}
                     </TabsList>
@@ -116,7 +121,7 @@ export default function ClassPage() {
                     </TabsContent>
 
                     <TabsContent value="marks">
-                        <MarksTab />
+                        <MarksTabV2 />
                     </TabsContent>
                 </Tabs>
 

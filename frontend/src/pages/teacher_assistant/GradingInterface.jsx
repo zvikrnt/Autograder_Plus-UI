@@ -153,9 +153,9 @@ export default function GradingInterface() {
     }
 
     return (
-        <div className="h-screen flex flex-col bg-gray-50">
+        <div className="h-screen flex flex-col bg-gray-50 dark:bg-gray-900">
             {/* Top Bar */}
-            <header className="h-16 bg-white border-b px-4 flex items-center justify-between shrink-0 z-10 shadow-sm">
+            <header className="h-16 bg-white dark:bg-gray-800 border-b px-4 flex items-center justify-between shrink-0 z-10 shadow-sm">
                 <div className="flex items-center gap-4">
                     <Button variant="ghost" size="icon" asChild>
                         <Link to={`/teacher/assignment/${assignmentId}`}>
@@ -183,8 +183,8 @@ export default function GradingInterface() {
             <div className="flex-1 flex overflow-hidden">
 
                 {/* 1. Sidebar: Question List */}
-                <div className="w-64 bg-white border-r flex flex-col overflow-y-auto">
-                    <div className="p-4 border-b bg-gray-50">
+                <div className="w-64 bg-white dark:bg-gray-800 border-r dark:border-gray-700 flex flex-col overflow-y-auto">
+                    <div className="p-4 border-b dark:border-gray-700 bg-gray-50 dark:bg-gray-900">
                         <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Questions</span>
                     </div>
                     {report.map((item, idx) => {
@@ -195,7 +195,7 @@ export default function GradingInterface() {
                             <button
                                 key={item.question.id}
                                 onClick={() => setSelectedQuestionId(item.question.id)}
-                                className={`p-4 text-left border-b hover:bg-gray-50 transition-colors flex items-start gap-3
+                                className={`p-4 text-left border-b dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors flex items-start gap-3
                                 ${selectedQuestionId === item.question.id ? 'bg-indigo-50 border-l-4 border-l-indigo-600' : 'border-l-4 border-l-transparent'}
                             `}
                             >
@@ -235,7 +235,7 @@ export default function GradingInterface() {
                             </div>
 
                             {/* Grading Tools (Right) */}
-                            <div className="w-[400px] border-l bg-white flex flex-col shadow-xl z-20">
+                            <div className="w-[400px] border-l dark:border-gray-700 bg-white dark:bg-gray-800 flex flex-col shadow-xl z-20">
                                 <Tabs defaultValue="autograder" className="flex-1 flex flex-col">
                                     <div className="border-b px-4">
                                         <TabsList className="w-full justify-start h-12 bg-transparent p-0 gap-4">
@@ -289,7 +289,7 @@ export default function GradingInterface() {
                                                                     </div>
 
                                                                     {tc.explanation && (
-                                                                        <div className="text-xs text-gray-600 italic border-l-2 border-gray-300 pl-2 py-0.5 mb-2">
+                                                                        <div className="text-xs text-gray-600 italic border-l-2 border-gray-300 dark:border-gray-600 pl-2 py-0.5 mb-2">
                                                                             "{tc.explanation}"
                                                                         </div>
                                                                     )}
@@ -346,7 +346,7 @@ export default function GradingInterface() {
                                         </TabsContent>
 
                                         <TabsContent value="history">
-                                            <div className="p-8 text-center text-gray-500 border border-dashed rounded bg-gray-50">
+                                            <div className="p-8 text-center text-gray-500 border border-dashed rounded bg-gray-50 dark:bg-gray-900">
                                                 No history available.
                                             </div>
                                         </TabsContent>
@@ -355,14 +355,14 @@ export default function GradingInterface() {
                             </div>
                         </>
                     ) : (
-                        <div className="flex-1 flex flex-col items-center justify-center bg-gray-100 text-gray-500">
+                        <div className="flex-1 flex flex-col items-center justify-center bg-gray-100 dark:bg-gray-800 text-gray-500">
                             <AlertCircle className="w-12 h-12 mb-4 opacity-50" />
                             <h2 className="text-xl font-semibold">Not Attempted</h2>
                             <p>The student has not submitted code for this question yet.</p>
                         </div>
                     )
                 ) : (
-                    <div className="flex-1 flex items-center justify-center bg-gray-50">
+                    <div className="flex-1 flex items-center justify-center bg-gray-50 dark:bg-gray-900">
                         <Loader2 className="animate-spin text-indigo-600" />
                     </div>
                 )}

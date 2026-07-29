@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import { motion } from "framer-motion";
+import { motion as Motion } from "framer-motion";
 import { MoreVertical, Users, Loader2, Pencil, Trash2, Archive } from "lucide-react";
 
 import { Card, CardContent } from "../../ui/card";
@@ -27,9 +27,10 @@ const ClassCard = ({ cl, onEdit, onDelete, onArchive, showArchiveOption = true }
         "bg-violet-600"
     ];
     const accentColor = colors[(cl.id || 0) % colors.length];
+    const stopCardNavigation = (event) => event.stopPropagation();
 
     return (
-        <motion.div variants={itemVariants} className="h-full">
+        <Motion.div variants={itemVariants} className="h-full">
             <Card className="h-full flex flex-col overflow-hidden border border-gray-200 transition-all duration-300 hover:shadow-xl hover:border-gray-300 hover:-translate-y-1 relative group">
                 {/* Navigation Link Overlay */}
                 <Link to={`/teacher/class/${cl.id}`} className="absolute inset-0 z-0" aria-label={`Go to ${cl.name}`} />
@@ -60,7 +61,9 @@ const ClassCard = ({ cl, onEdit, onDelete, onArchive, showArchiveOption = true }
                                             <Button
                                                 variant="ghost"
                                                 size="icon"
-                                                className="h-8 w-8 text-gray-400 opacity-0 group-hover:opacity-100 data-[state=open]:opacity-100 transition-opacity bg-white/50 hover:bg-whiteish backdrop-blur-sm"
+                                                className="h-8 w-8 text-gray-400 opacity-0 group-hover:opacity-100 data-[state=open]:opacity-100 transition-opacity bg-white/80 hover:bg-white backdrop-blur-sm"
+                                                onClick={(event) => event.stopPropagation()}
+                                                onPointerDown={(event) => event.stopPropagation()}
                                             >
                                                 <MoreVertical className="w-4 h-4" />
                                                 <span className="sr-only">Open menu</span>
@@ -68,19 +71,19 @@ const ClassCard = ({ cl, onEdit, onDelete, onArchive, showArchiveOption = true }
                                         </DropdownMenuTrigger>
                                         <DropdownMenuContent align="end">
                                             {onEdit && (
-                                                <DropdownMenuItem onClick={() => onEdit(cl)}>
+                                                <DropdownMenuItem onSelect={stopCardNavigation} onClick={() => onEdit(cl)}>
                                                     <Pencil className="w-4 h-4 mr-2" />
                                                     Edit
                                                 </DropdownMenuItem>
                                             )}
                                             {showArchiveOption && onArchive && (
-                                                <DropdownMenuItem onClick={() => onArchive(cl)}>
+                                                <DropdownMenuItem onSelect={stopCardNavigation} onClick={() => onArchive(cl)}>
                                                     <Archive className="w-4 h-4 mr-2" />
                                                     {cl.is_archived ? "Unarchive" : "Archive"}
                                                 </DropdownMenuItem>
                                             )}
                                             {onDelete && (
-                                                <DropdownMenuItem onClick={() => onDelete(cl)} className="text-red-600 focus:text-red-600">
+                                                <DropdownMenuItem onSelect={stopCardNavigation} onClick={() => onDelete(cl)} className="text-red-600 focus:text-red-600">
                                                     <Trash2 className="w-4 h-4 mr-2" />
                                                     Delete
                                                 </DropdownMenuItem>
@@ -132,7 +135,7 @@ const ClassCard = ({ cl, onEdit, onDelete, onArchive, showArchiveOption = true }
                     </div>
                 </div>
             </Card>
-        </motion.div>
+        </Motion.div>
     );
 };
 

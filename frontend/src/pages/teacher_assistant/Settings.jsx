@@ -86,7 +86,7 @@ export default function Settings() {
                             />
                         </div>
 
-                        <Separator className="border-t border-gray-100" />
+                        <Separator className="border-t border-gray-100 dark:border-gray-800" />
 
                         {/* Comments */}
                         {emailNotifications && (
@@ -111,7 +111,7 @@ export default function Settings() {
                                     </div>
                                 </div>
 
-                                <Separator className="border-t border-gray-100" />
+                                <Separator className="border-t border-gray-100 dark:border-gray-800" />
 
                                 {/* Classes you teach */}
                                 <div className="space-y-4">
@@ -138,7 +138,7 @@ export default function Settings() {
                                     </div>
                                 </div>
 
-                                <Separator className="border-t border-gray-100" />
+                                <Separator className="border-t border-gray-100 dark:border-gray-800" />
 
                                 {/* Class Notifications Dropdown */}
                                 <div className="space-y-4">

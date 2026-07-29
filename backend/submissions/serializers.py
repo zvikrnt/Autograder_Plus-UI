@@ -5,9 +5,42 @@ from users.serializers import UserSerializer
 
 
 class TestResultSerializer(serializers.ModelSerializer):
+    expected_output = serializers.SerializerMethodField()
+
     class Meta:
         model = TestResult
-        fields = ['id', 'test_case_id', 'status', 'score', 'actual_output', 'error_message']
+        fields = ['id', 'test_case_id', 'status', 'score', 'actual_output', 'error_message', 'expected_output']
+
+    def get_expected_output(self, obj):
+        try:
+            # Look up the original expected output from the question's test cases
+            test_cases = obj.attempt.assignment_question.question.test_cases
+            if not test_cases:
+                return None
+            
+            tc_id = str(obj.test_case_id)
+            # Old format: test_case_id is just numerical index '0', '1', ...
+            if tc_id.isdigit():
+                idx = int(tc_id)
+                if 0 <= idx < len(test_cases):
+                    return str(test_cases[idx].get('expected_output', ''))
+            
+            # New format: test_case_id matches the 'id' field in the config JSON
+            for tc in test_cases:
+                if str(tc.get('id', '')) == tc_id:
+                    return str(tc.get('expected_output', ''))
+                    
+            # Fallback if the id was slightly off but we have index
+            if str(tc_id).startswith("tc_"):
+                idx_str = tc_id.split("_")[1]
+                if idx_str.isdigit():
+                    idx = int(idx_str) - 1
+                    if 0 <= idx < len(test_cases):
+                         return str(test_cases[idx].get('expected_output', ''))
+
+        except Exception:
+            pass
+        return None
 
 
 class SubmissionAttemptSerializer(serializers.ModelSerializer):
@@ -37,15 +70,9 @@ class SubmissionAttemptSerializer(serializers.ModelSerializer):
         return QuestionSerializer(obj.assignment_question.question).data
 
     def get_final_score(self, obj):
-        # Return manual score converted to percentage
+        # Manual override is stored as percentage (0-100).
         if obj.manual_score is not None:
-            # manual_score is in points (e.g. 3.0 out of 6.0)
-            # Convert to percentage using custom_points from the assignment question
-            try:
-                max_points = obj.assignment_question.custom_points or 100
-                return round((obj.manual_score / max_points) * 100, 1)
-            except (ZeroDivisionError, AttributeError):
-                return obj.manual_score
+            return round(max(0.0, min(100.0, obj.manual_score)), 1)
 
         # Fallback: Calculate score based on passed test cases
         results = obj.test_results.all()
@@ -153,11 +180,7 @@ class SubmissionAnalyticsSerializer(serializers.ModelSerializer):
 
     def get_final_score(self, obj):
         if obj.manual_score is not None:
-            try:
-                max_points = obj.assignment_question.custom_points or 100
-                return round((obj.manual_score / max_points) * 100, 1)
-            except (ZeroDivisionError, AttributeError):
-                return obj.manual_score
+            return round(max(0.0, min(100.0, obj.manual_score)), 1)
         
         # Iterate already-prefetched test_results (in memory, no extra DB query)
         results = list(obj.test_results.all())
@@ -257,4 +280,3 @@ class GradebookEntrySerializer(serializers.ModelSerializer):
         if hasattr(obj.content_item, 'assignment'):
             return getattr(obj.content_item.assignment, 'mode', None)
         return None
-

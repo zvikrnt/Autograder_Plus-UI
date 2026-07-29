@@ -19,14 +19,17 @@ export default function TeacherCalendar() {
                 
                 if (response.success && response.data) {
                     // Convert assignments to calendar events
-                    const calendarEvents = response.data.map(assignment => ({
-                        id: assignment.id,
-                        title: assignment.title,
-                        date: new Date(assignment.due_date),
-                        type: assignment.type || 'Assignment',
-                        classId: assignment.module?.class_obj?.id,
-                        className: assignment.module?.class_obj?.name || 'Unknown Class'
-                    }));
+                    const calendarEvents = response.data.map(assignment => {
+                        const displayType = assignment.type === 'quiz' ? 'Quiz' : assignment.mode === 'exam' ? 'Exam' : 'Assignment';
+                        return {
+                            id: assignment.id,
+                            title: assignment.title,
+                            date: new Date(assignment.due_date),
+                            type: displayType,
+                            classId: assignment.module?.class_obj?.id,
+                            className: assignment.module?.class_obj?.name || 'Unknown Class',
+                        };
+                    });
                     setEvents(calendarEvents);
                 }
             } catch (error) {
@@ -109,7 +112,7 @@ export default function TeacherCalendar() {
                         </CardHeader>
                         <CardContent className="flex-1 p-0 flex flex-col">
                             {/* Weekday Headers */}
-                            <div className="grid grid-cols-7 border-b bg-gray-50">
+                            <div className="grid grid-cols-7 border-b bg-gray-50 dark:bg-gray-900">
                                 {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
                                     <div key={day} className="py-2 text-center text-sm font-semibold text-gray-500">
                                         {day}
@@ -119,13 +122,13 @@ export default function TeacherCalendar() {
                             {/* Days Grid */}
                             <div className="grid grid-cols-7 flex-1 auto-rows-fr">
                                 {[...Array(firstDay)].map((_, i) => (
-                                    <div key={`empty-${i}`} className="border-b border-r bg-gray-50/30 p-2 min-h-[100px]" />
+                                    <div key={`empty-${i}`} className="border-b border-r bg-gray-50/30 dark:bg-gray-900/30 p-2 min-h-[100px]" />
                                 ))}
                                 {[...Array(days)].map((_, i) => {
                                     const day = i + 1;
                                     const events = getEventsForDay(day);
                                     return (
-                                        <div key={day} className={`border-b border-r p-2 min-h-[100px] relative transition-colors hover:bg-gray-50 group flex flex-col gap-1
+                                        <div key={day} className={`border-b border-r p-2 min-h-[100px] relative transition-colors hover:bg-gray-50 dark:hover:bg-gray-800 group flex flex-col gap-1
                                             ${isToday(day) ? 'bg-indigo-50/30' : ''}
                                         `}>
                                             <span className={`text-sm font-medium w-7 h-7 flex items-center justify-center rounded-full mb-1
@@ -163,7 +166,7 @@ export default function TeacherCalendar() {
                     {/* Upcoming Sidebar (Global) */}
                     <div className="space-y-6 h-full flex flex-col">
                         <Card className="flex-1 flex flex-col overflow-hidden">
-                            <CardHeader className="border-b bg-gray-50/50 pb-3">
+                            <CardHeader className="border-b bg-gray-50/50 dark:bg-gray-900 pb-3">
                                 <CardTitle className="text-sm font-medium text-gray-500 uppercase tracking-wider flex items-center gap-2">
                                     <CalendarIcon className="w-4 h-4" />
                                     Upcoming Events

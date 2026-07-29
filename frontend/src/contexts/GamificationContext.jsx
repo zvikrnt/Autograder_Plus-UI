@@ -10,6 +10,7 @@
 
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import { useGameWebSocket, useAuthenticatedWebSocket } from '../hooks/useWebSocket';
+import { tokenManager } from '../utils/tokenManager';
 import { NotificationContainer } from '../components/features/gamification/NotificationToast';
 
 const GamificationContext = createContext();
@@ -43,9 +44,9 @@ export const GamificationProvider = ({ children }) => {
   const [isInitialized, setIsInitialized] = useState(false);
   const [connectionError, setConnectionError] = useState(null);
 
-  // Initialize authentication from localStorage
+  // Initialize authentication from sessionStorage via tokenManager
   useEffect(() => {
-    const token = localStorage.getItem('access_token');
+    const token = tokenManager.getAccessToken();
     if (token) {
       setAuthToken(token);
     }
@@ -69,12 +70,13 @@ export const GamificationProvider = ({ children }) => {
 
   // Handle authentication changes
   const handleLogin = useCallback((token) => {
-    localStorage.setItem('access_token', token);
+    // Persist tokens per-tab using sessionStorage via tokenManager
+    tokenManager.setTokens(token, tokenManager.getRefreshToken());
     setAuthToken(token);
   }, [setAuthToken]);
 
   const handleLogout = useCallback(() => {
-    localStorage.removeItem('access_token');
+    tokenManager.clearTokens();
     clearAuth();
     setConnectionError(null);
   }, [clearAuth]);

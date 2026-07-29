@@ -106,3 +106,94 @@ class Comment(models.Model):
     class Meta:
         db_table = 'class_comments'
         ordering = ['created_at']
+
+
+def announcement_attachment_path(instance, filename):
+    return f"class_files/announcements/{instance.announcement.class_obj_id}/{filename}"
+
+
+def class_resource_path(instance, filename):
+    return f"class_files/resources/{instance.class_obj_id}/{filename}"
+
+
+class AnnouncementAttachment(models.Model):
+    """A file (pdf/ppt/doc/image/etc.) attached to an announcement."""
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    announcement = models.ForeignKey(
+        Announcement, on_delete=models.CASCADE, related_name='attachments'
+    )
+    file = models.FileField(upload_to=announcement_attachment_path)
+    original_name = models.CharField(max_length=255, blank=True)
+    size = models.BigIntegerField(default=0)
+    content_type = models.CharField(max_length=120, blank=True)
+    uploaded_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'announcement_attachments'
+        ordering = ['uploaded_at']
+
+
+class ClassResource(models.Model):
+    """
+    Teacher/TA-uploaded class material — lecture notes, slides (ppt), pdfs, etc.
+    Visible to everyone enrolled in the class; upload restricted to teacher/TA/owner.
+    """
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    class_obj = models.ForeignKey(Class, on_delete=models.CASCADE, related_name='resources')
+    uploaded_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='uploaded_resources'
+    )
+    title = models.CharField(max_length=255)
+    description = models.TextField(blank=True)
+    category = models.CharField(max_length=80, blank=True, default='General')  # e.g. Lecture, Notes, Slides
+    file = models.FileField(upload_to=class_resource_path, null=True, blank=True)
+    link_url = models.URLField(blank=True)  # allow external links too
+    original_name = models.CharField(max_length=255, blank=True)
+    size = models.BigIntegerField(default=0)
+    content_type = models.CharField(max_length=120, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'class_resources'
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"{self.title} ({self.class_obj.name})"
+
+
+class DiscussionThread(models.Model):
+    """A question/topic started by a student (or teacher) in the class discussion board."""
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    class_obj = models.ForeignKey(Class, on_delete=models.CASCADE, related_name='discussion_threads')
+    author = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='discussion_threads'
+    )
+    title = models.CharField(max_length=255)
+    body = models.TextField(blank=True)
+    is_resolved = models.BooleanField(default=False)
+    is_pinned = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'discussion_threads'
+        ordering = ['-is_pinned', '-created_at']
+
+    def __str__(self):
+        return f"{self.title} ({self.class_obj.name})"
+
+
+class DiscussionReply(models.Model):
+    """A reply to a discussion thread. Author role drives the UI color/badge."""
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    thread = models.ForeignKey(DiscussionThread, on_delete=models.CASCADE, related_name='replies')
+    author = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='discussion_replies'
+    )
+    content = models.TextField()
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'discussion_replies'
+        ordering = ['created_at']

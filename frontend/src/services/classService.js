@@ -19,6 +19,21 @@ export const classService = {
     return await api.get(API_CONFIG.ENDPOINTS.CLASSES.DETAIL(classId));
   },
 
+  // Export the full class gradebook (assignments + quizzes) as a CSV blob
+  exportGrades: async (classId) => {
+    return await api.get(
+      `${API_CONFIG.ENDPOINTS.CLASSES.DETAIL(classId)}export-grades/`,
+      { responseType: 'blob' }
+    );
+  },
+
+  // Individual student performance within a class (score vs class avg per assignment)
+  getStudentPerformance: async (classId, studentId) => {
+    return await api.get(
+      `${API_CONFIG.ENDPOINTS.CLASSES.DETAIL(classId)}student-performance/?student_id=${studentId}`
+    );
+  },
+
   // Create new class
   createClass: async (classData) => {
     return await api.post(API_CONFIG.ENDPOINTS.CLASSES.LIST, classData);
@@ -72,6 +87,11 @@ export const classService = {
   // Remove member from class
   removeMember: async (classId, userId) => {
     return await api.delete(`${API_CONFIG.ENDPOINTS.CLASSES.DETAIL(classId)}remove-member/`, { data: { user_id: userId } });
+  },
+
+  // Leave class (student/TA self-unenroll)
+  leaveClass: async (classId) => {
+    return await api.post(`${API_CONFIG.ENDPOINTS.CLASSES.DETAIL(classId)}leave/`);
   },
 
   // Get student topic grades

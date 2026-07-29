@@ -5,11 +5,13 @@ import subprocess
 import os
 import sys
 import tempfile
+from datetime import timedelta
 logger = logging.getLogger(__name__)
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from django.db.models import Q
+from django.utils import timezone
 from .models import Assignment, Question
 from .serializers import AssignmentSerializer, QuestionSerializer
 from classes.models import Enrollment
@@ -69,6 +71,46 @@ class AssignmentViewSet(viewsets.ModelViewSet):
             return [IsAuthenticated()]
         return [IsAuthenticated()]
     
+    def retrieve(self, request, *args, **kwargs):
+        instance = self.get_object()
+        if request.user.role == 'student':
+            now = timezone.now()
+            if instance.start_time and instance.start_time > now:
+                return Response(
+                    {'message': 'This assignment is not available yet. It starts at ' + instance.start_time.isoformat()},
+                    status=status.HTTP_403_FORBIDDEN
+                )
+            if instance.due_date and instance.due_date < now:
+                is_exam_or_quiz = instance.type == 'quiz' or getattr(instance, 'mode', None) == 'exam'
+                if is_exam_or_quiz:
+                    return Response(
+                        {'message': 'This assignment is no longer available. It was due at ' + instance.due_date.isoformat()},
+                        status=status.HTTP_403_FORBIDDEN
+                    )
+
+            # Block exam if time window has expired (start_time + duration_minutes elapsed)
+            if instance.mode == 'exam' and instance.start_time and instance.duration_minutes:
+                exam_end = instance.start_time + timedelta(minutes=instance.duration_minutes)
+                if now > exam_end:
+                    return Response(
+                        {'message': 'This exam has ended. The time window (' + str(instance.duration_minutes) + ' min) starting at ' + instance.start_time.isoformat() + ' has passed.'},
+                        status=status.HTTP_403_FORBIDDEN
+                    )
+
+            # Prevent re-accessing a submitted exam
+            if instance.mode == 'exam':
+                from submissions.models import GradebookEntry
+                if GradebookEntry.objects.filter(
+                    student=request.user,
+                    content_item=instance,
+                    status__in=['submitted', 'graded']
+                ).exists():
+                    return Response(
+                        {'message': 'This assignment has already been completed.'},
+                        status=status.HTTP_403_FORBIDDEN
+                    )
+        return super().retrieve(request, *args, **kwargs)
+
     def create(self, request, *args, **kwargs):
         # Handle 'class_obj_id' from frontend -> 'module' for backend
         class_id = request.data.get('class_obj_id')
@@ -192,15 +234,37 @@ class AssignmentViewSet(viewsets.ModelViewSet):
             except Exception as e:
                 logger.warning(f"Could not hide exam questions in Practice Library: {e}")
 
+        # Notify students if assignment is created as published
+        if assignment.is_published:
+            try:
+                from notifications.models import Notification
+                class_obj = assignment.module.class_obj
+                enrollments = Enrollment.objects.filter(class_obj=class_obj, role='student').select_related('user')
+                
+                for enrollment in enrollments:
+                    Notification.objects.create(
+                        user=enrollment.user,
+                        type='alert',
+                        title=f'New Assignment: {assignment.title}',
+                        message=f'A new assignment "{assignment.title}" has been posted in {class_obj.name}.',
+                        reference_link=f'/student/workspace/{assignment.id}'
+                    )
+            except Exception as e:
+                logger.warning(f"Failed to send creation notifications: {e}")
+
     def perform_update(self, serializer):
         user = self.request.user
         instance = serializer.instance
+        
+        is_newly_published = False
         
         # Check if is_published is being changed by a non-teacher
         if 'is_published' in serializer.validated_data:
             new_status = serializer.validated_data['is_published']
             
             if new_status != instance.is_published:
+                if new_status:
+                    is_newly_published = True
                 # Verify permissions
                 class_owner = instance.module.class_obj.owner
                 is_owner = class_owner == user
@@ -214,9 +278,69 @@ class AssignmentViewSet(viewsets.ModelViewSet):
                 if not (is_owner or is_teacher or is_admin):
                     # Revert to original status
                     serializer.validated_data['is_published'] = instance.is_published
+                    is_newly_published = False
+
+        # Check if key fields changed to trigger re-submission chance
+        trigger_reset = False
+        if instance.is_published:
+            important_fields = ['title', 'description', 'due_date']
+            for field in important_fields:
+                if field in serializer.validated_data and serializer.validated_data[field] != getattr(instance, field):
+                    trigger_reset = True
+                    break
+            
+            if 'question_ids' in self.request.data:
+                # Questions changed
+                trigger_reset = True
 
         assignment = serializer.save()
         
+        # Notify if newly published during update
+        if is_newly_published:
+            try:
+                from notifications.models import Notification
+                class_obj = assignment.module.class_obj
+                enrollments = Enrollment.objects.filter(class_obj=class_obj, role='student').select_related('user')
+                
+                for enrollment in enrollments:
+                    Notification.objects.create(
+                        user=enrollment.user,
+                        type='alert',
+                        title=f'New Assignment: {assignment.title}',
+                        message=f'A new assignment "{assignment.title}" has been posted in {class_obj.name}.',
+                        reference_link=f'/student/workspace/{assignment.id}'
+                    )
+            except Exception as e:
+                logger.warning(f"Failed to send newly published notifications: {e}")
+
+        # Notify and Reset Status if needed
+        if trigger_reset:
+            try:
+                from notifications.models import Notification
+                from submissions.models import GradebookEntry
+                
+                class_obj = assignment.module.class_obj
+                enrollments = Enrollment.objects.filter(class_obj=class_obj, role='student').select_related('user')
+                
+                for enrollment in enrollments:
+                    # Notify
+                    Notification.objects.create(
+                        user=enrollment.user,
+                        type='alert',
+                        title=f'Assignment Updated: {assignment.title}',
+                        message=f'The assignment "{assignment.title}" in {class_obj.name} has been updated. You can now re-edit and re-submit your work.',
+                        reference_link=f'/student/workspace/{assignment.id}'
+                    )
+                    
+                    # Reset GradebookEntry status from 'submitted' to 'pending' to allow editing
+                    GradebookEntry.objects.filter(
+                        student=enrollment.user,
+                        content_item_id=assignment.id,
+                        status='submitted'
+                    ).update(status='pending')
+            except Exception as e:
+                logger.error(f"Failed to trigger update notifications/reset: {e}")
+
         # Handle question_ids linkage update
         # Check explicit None vs empty list if we want to support clearing, 
         # but frontend sends [] if empty.
@@ -291,6 +415,23 @@ class AssignmentViewSet(viewsets.ModelViewSet):
         
         assignment.is_published = True
         assignment.save()
+
+        # Notify Students
+        try:
+            from notifications.models import Notification
+            class_obj = assignment.module.class_obj
+            enrollments = Enrollment.objects.filter(class_obj=class_obj, role='student').select_related('user')
+            
+            for enrollment in enrollments:
+                Notification.objects.create(
+                    user=enrollment.user,
+                    type='invite', # Or 'assignment' if we add a choice
+                    title=f'New Assignment: {assignment.title}',
+                    message=f'A new assignment "{assignment.title}" has been posted in {class_obj.name}.',
+                    reference_link=f'/student/workspace/{assignment.id}'
+                )
+        except Exception as e:
+            logger.error(f"Failed to send publication notifications: {e}")
         
         return Response({
             'success': True,
@@ -605,17 +746,21 @@ class AssignmentViewSet(viewsets.ModelViewSet):
             status='pending',
         )
 
-        # Dispatch master task
+        # Dispatch master task. Normal runs resume from the last unfinished
+        # question; an explicit force-restart re-analyzes everything.
         celery_task = analyze_assignment_ai_task.delay(
             str(assignment.id),
-            str(ai_task.id)
+            str(ai_task.id),
+            resume=not force_restart,
         )
 
         return Response({
             'success': True,
             'task_id': str(ai_task.id),
             'celery_task_id': celery_task.id,
-            'message': 'AI Analysis started in background.',
+            'resume': not force_restart,
+            'message': ('Resuming AI Analysis from last unfinished question.'
+                        if not force_restart else 'AI Analysis restarted from scratch.'),
         })
 
     @action(detail=True, methods=['post'], url_path='cancel-ai')
@@ -653,6 +798,7 @@ class AssignmentViewSet(viewsets.ModelViewSet):
         tasks_qs = AIAnalysisTask.objects.filter(
             status__in=['pending', 'running']
         ).select_related('assignment__module__class_obj')
+
         if getattr(request.user, 'role', None) != 'admin':
             # Teacher/TA: only assignments in classes they own or teach
             allowed_classes = set()
@@ -662,18 +808,26 @@ class AssignmentViewSet(viewsets.ModelViewSet):
             taught = Enrollment.objects.filter(user=request.user, role='teacher').values_list('class_obj_id', flat=True)
             allowed_classes.update(taught)
             tasks_qs = tasks_qs.filter(assignment__module__class_obj_id__in=allowed_classes)
+        
         tasks = tasks_qs.order_by('-created_at')
-        data = [{
-            'task_id': str(t.id),
-            'assignment_id': str(t.assignment_id),
-            'assignment_title': t.assignment.title,
-            'status': t.status,
-            'completed_batches': t.completed_batches,
-            'total_batches': t.total_batches,
-            'analyzed': t.analyzed,
-            'total_submissions': t.total_submissions,
-            'log_output': t.log_output or [],
-        } for t in tasks]
+        data = []
+        for t in tasks:
+            # Skip or handle tasks with missing assignments (orphaned)
+            if not t.assignment:
+                continue
+
+            data.append({
+                'task_id': str(t.id),
+                'assignment_id': str(t.assignment_id),
+                'assignment_title': t.assignment.title,
+                'status': t.status,
+                'completed_batches': t.completed_batches,
+                'total_batches': t.total_batches,
+                'analyzed': t.analyzed,
+                'total_submissions': t.total_submissions,
+                'log_output': (t.log_output or [])[-500:],
+                'kind': 'ai',
+            })
         return Response(data)
 
     @action(detail=True, methods=['get'], url_path='analysis-progress')
@@ -705,6 +859,7 @@ class AssignmentViewSet(viewsets.ModelViewSet):
                 'total':             total,
                 'analyzed':          analyzed,
                 'percent':           percent,
+                'log_output':        (ai_task.log_output or [])[-500:],
             })
 
         # No task record at all — count directly from DB
@@ -720,6 +875,438 @@ class AssignmentViewSet(viewsets.ModelViewSet):
             'total':   total,
             'analyzed': analyzed,
             'percent': round(analyzed / total * 100, 1) if total > 0 else 0,
+        })
+
+    # ------------------------------------------------------------------
+    # CLUSTER GRADING
+    # ------------------------------------------------------------------
+    def _is_grader(self, assignment, user):
+        """Owner / teacher / admin may run and save cluster grading."""
+        class_obj = assignment.module.class_obj
+        is_owner = class_obj.owner == user
+        is_teacher = Enrollment.objects.filter(
+            class_obj=class_obj, user=user, role='teacher'
+        ).exists()
+        is_admin = getattr(user, 'role', None) == 'admin'
+        return is_owner or is_teacher or is_admin
+
+    @action(detail=True, methods=['post'], url_path='run-cluster-grade')
+    def run_cluster_grade(self, request, pk=None):
+        """Trigger behavior-aware cluster grading for this assignment."""
+        from submissions.cluster_tasks import run_cluster_grading_task
+        from submissions.models import ClusterGradingTask
+        from django.utils import timezone
+        from datetime import timedelta
+
+        assignment = self.get_object()
+        if not self._is_grader(assignment, request.user):
+            return Response(
+                {'message': 'Not authorized. Only teachers can run cluster grading.'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        force_restart = str(request.data.get('force', '')).lower() == 'true'
+        # Optional tuning knobs forwarded to cluster_grade.py.
+        config_options = request.data.get('config') or {}
+
+        active = ClusterGradingTask.objects.filter(
+            assignment=assignment, status__in=['pending', 'running']
+        ).order_by('-created_at').first()
+
+        if active:
+            is_stale = (timezone.now() - active.created_at) > timedelta(minutes=30)
+            if force_restart or (is_stale and active.status == 'pending'):
+                active.status = 'cancelled'
+                active.save(update_fields=['status'])
+                active = None
+            else:
+                return Response({
+                    'success': False,
+                    'already_running': True,
+                    'task_id': str(active.id),
+                    'completed_batches': active.completed_batches,
+                    'total_batches': active.total_batches,
+                    'message': f'Cluster grading already in progress (status: {active.status}).',
+                }, status=status.HTTP_409_CONFLICT)
+
+        cg_task = ClusterGradingTask.objects.create(assignment=assignment, status='pending')
+        # Normal runs resume from the last unfinished question; force restarts everything.
+        celery_task = run_cluster_grading_task.delay(
+            str(assignment.id), str(cg_task.id), config_options, not force_restart
+        )
+        return Response({
+            'success': True,
+            'task_id': str(cg_task.id),
+            'celery_task_id': celery_task.id,
+            'resume': not force_restart,
+            'message': ('Resuming cluster grading from last unfinished question.'
+                        if not force_restart else 'Cluster grading restarted from scratch.'),
+        })
+
+    @action(detail=True, methods=['post'], url_path='cancel-cluster-grade')
+    def cancel_cluster_grade(self, request, pk=None):
+        """Cancel an in-progress cluster grading run."""
+        from celery import current_app
+        from submissions.models import ClusterGradingTask
+
+        cg_task = ClusterGradingTask.objects.filter(
+            assignment_id=pk, status__in=['pending', 'running']
+        ).first()
+        if not cg_task:
+            return Response({'message': 'No active cluster grading to cancel.'},
+                            status=status.HTTP_404_NOT_FOUND)
+        for task_id in cg_task.task_ids:
+            try:
+                current_app.control.revoke(task_id, terminate=True)
+            except Exception as e:
+                logger.warning(f"Could not revoke cluster task {task_id}: {e}")
+        cg_task.status = 'cancelled'
+        cg_task.save(update_fields=['status'])
+        return Response({'success': True, 'message': 'Cluster grading cancelled.'})
+
+    @action(detail=True, methods=['get'], url_path='cluster-progress')
+    def cluster_progress(self, request, pk=None):
+        """Real-time progress for the latest cluster grading run."""
+        from submissions.models import ClusterGradingTask
+
+        cg_task = ClusterGradingTask.objects.filter(assignment_id=pk).first()
+        if not cg_task:
+            return Response({'status': 'unknown', 'total_batches': 0,
+                             'completed_batches': 0, 'analyzed': 0, 'percent': 0})
+        return Response({
+            'status':            cg_task.status,
+            'task_id':           str(cg_task.id),
+            'total_batches':     cg_task.total_batches,
+            'completed_batches': cg_task.completed_batches,
+            'total':             cg_task.total_submissions,
+            'analyzed':          cg_task.analyzed,
+            'percent':           cg_task.percent,
+            'has_results':       bool(cg_task.results),
+            'log_output':        (cg_task.log_output or [])[-500:],
+        })
+
+    @action(detail=False, methods=['get'], url_path='cluster-grading-tasks')
+    def list_cluster_grading_tasks(self, request):
+        """List active (pending/running) cluster grading tasks.
+
+        Admin: all. Teacher/TA: only assignments in classes they own or teach.
+        Shaped like list_ai_analysis_tasks so the admin task page can merge both.
+        """
+        from submissions.models import ClusterGradingTask
+        tasks_qs = ClusterGradingTask.objects.filter(
+            status__in=['pending', 'running']
+        ).select_related('assignment__module__class_obj')
+
+        if getattr(request.user, 'role', None) != 'admin':
+            allowed_classes = set()
+            from classes.models import Class
+            owned = Class.objects.filter(owner=request.user).values_list('id', flat=True)
+            allowed_classes.update(owned)
+            taught = Enrollment.objects.filter(
+                user=request.user, role='teacher'
+            ).values_list('class_obj_id', flat=True)
+            allowed_classes.update(taught)
+            tasks_qs = tasks_qs.filter(assignment__module__class_obj_id__in=allowed_classes)
+
+        data = []
+        for t in tasks_qs.order_by('-created_at'):
+            if not t.assignment:
+                continue
+            data.append({
+                'task_id': str(t.id),
+                'assignment_id': str(t.assignment_id),
+                'assignment_title': t.assignment.title,
+                'status': t.status,
+                'completed_batches': t.completed_batches,
+                'total_batches': t.total_batches,
+                'analyzed': t.analyzed,
+                'total_submissions': t.total_submissions,
+                'log_output': (t.log_output or [])[-500:],
+                'kind': 'cluster',
+            })
+        return Response(data)
+
+    @action(detail=True, methods=['get'], url_path='cluster-results')
+    def cluster_results(self, request, pk=None):
+        """Return parsed clusters + insights + plot URLs for the latest run."""
+        from submissions.models import ClusterGradingTask
+
+        cg_task = ClusterGradingTask.objects.filter(
+            assignment_id=pk
+        ).exclude(results={}).order_by('-created_at').first()
+
+        if not cg_task or not cg_task.results:
+            return Response({'status': 'no_results', 'questions': []})
+
+        questions = list(cg_task.results.values())
+        return Response({
+            'status': cg_task.status,
+            'task_id': str(cg_task.id),
+            'questions': questions,
+        })
+
+    @action(detail=True, methods=['get'], url_path='cluster-member-code')
+    def cluster_member_code(self, request, pk=None):
+        """Return a student's latest source code for a question (for the code popup).
+
+        Query params: question_slug, username
+        """
+        from submissions.models import SubmissionAttempt
+
+        assignment = self.get_object()
+        if not self._is_grader(assignment, request.user):
+            return Response({'message': 'Not authorized.'}, status=status.HTTP_403_FORBIDDEN)
+
+        question_slug = request.query_params.get('question_slug')
+        username = request.query_params.get('username')
+        if not question_slug or not username:
+            return Response({'message': 'question_slug and username are required.'},
+                            status=status.HTTP_400_BAD_REQUEST)
+
+        attempt = (
+            SubmissionAttempt.objects
+            .filter(assignment_question__assignment_id=pk,
+                    assignment_question__question__slug=question_slug,
+                    student__username=username)
+            .select_related('assignment_question__question')
+            .order_by('-created_at')
+            .first()
+        )
+        if not attempt:
+            return Response({'message': 'No submission found for that student.'},
+                            status=status.HTTP_404_NOT_FOUND)
+
+        q_config = attempt.assignment_question.question.config or {}
+        return Response({
+            'username': username,
+            'question_slug': question_slug,
+            'language': q_config.get('language', 'python'),
+            'source_code': attempt.source_code or '',
+            'manual_score': attempt.manual_score,
+            'submitted_at': attempt.created_at,
+        })
+
+    @action(detail=True, methods=['post'], url_path='save-cluster-grade')
+    def save_cluster_grade(self, request, pk=None):
+        """
+        Persist a teacher's grade for one cluster of one question.
+
+        Propagation policy (per product decision): grades apply to every member
+        only for SAFE / SAFE_SINGLETON clusters. UNSAFE clusters are rejected —
+        those must be graded per-student in the normal grading interface.
+
+        Body: { question_slug, cluster_id, grade (0-100) }
+        """
+        from submissions.models import ClusterGradingTask, SubmissionAttempt
+
+        assignment = self.get_object()
+        if not self._is_grader(assignment, request.user):
+            return Response({'message': 'Not authorized.'}, status=status.HTTP_403_FORBIDDEN)
+
+        question_slug = request.data.get('question_slug')
+        cluster_id = request.data.get('cluster_id')
+        grade = request.data.get('grade')
+
+        if question_slug is None or cluster_id is None or grade is None:
+            return Response({'message': 'question_slug, cluster_id and grade are required.'},
+                            status=status.HTTP_400_BAD_REQUEST)
+        try:
+            grade = float(grade)
+            cluster_id = int(cluster_id)
+        except (TypeError, ValueError):
+            return Response({'message': 'grade and cluster_id must be numeric.'},
+                            status=status.HTTP_400_BAD_REQUEST)
+        if not (0 <= grade <= 100):
+            return Response({'message': 'grade must be between 0 and 100.'},
+                            status=status.HTTP_400_BAD_REQUEST)
+
+        cg_task = ClusterGradingTask.objects.filter(
+            assignment_id=pk
+        ).exclude(results={}).order_by('-created_at').first()
+        if not cg_task or question_slug not in (cg_task.results or {}):
+            return Response({'message': 'No cluster results for that question. Re-run cluster grading.'},
+                            status=status.HTTP_404_NOT_FOUND)
+
+        q_result = cg_task.results[question_slug]
+        cluster = next((c for c in q_result.get('clusters', []) if c.get('cluster_id') == cluster_id), None)
+        if not cluster:
+            return Response({'message': f'Cluster {cluster_id} not found.'},
+                            status=status.HTTP_404_NOT_FOUND)
+
+        if cluster.get('safety') not in ('SAFE', 'SAFE_SINGLETON'):
+            return Response({
+                'message': 'This cluster is UNSAFE — grade its students individually in the grading interface.',
+                'safety': cluster.get('safety'),
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        # Apply the grade to every member's latest attempt for this question.
+        usernames = [m['student_id'] for m in cluster.get('members', []) if m.get('student_id')]
+        updated = 0
+        for username in usernames:
+            attempt = (
+                SubmissionAttempt.objects
+                .filter(assignment_question__assignment_id=pk,
+                        assignment_question__question__slug=question_slug,
+                        student__username=username)
+                .order_by('-created_at')
+                .first()
+            )
+            if attempt:
+                attempt.manual_score = grade
+                attempt.save(update_fields=['manual_score'])
+                updated += 1
+
+        # Record the applied grade back onto the stored cluster for the UI.
+        cluster['cluster_grade'] = grade
+        cluster['graded'] = True
+        cg_task.save(update_fields=['results'])
+
+        return Response({
+            'success': True,
+            'updated_students': updated,
+            'message': f'Applied {grade}% to {updated} student(s) in cluster C{cluster_id}.',
+        })
+
+    # ------------------------------------------------------------------
+    # AUTOMATIC GRADING (from test-case pass percentage)
+    # ------------------------------------------------------------------
+    @staticmethod
+    def _question_pass_percentage(attempt, num_tests):
+        """Test-case pass percentage (0-100) for one attempt."""
+        if num_tests <= 0:
+            return 0.0
+        passed = min(attempt.test_results.filter(status='pass').count(), num_tests)
+        return (passed / num_tests) * 100.0
+
+    @staticmethod
+    def _apply_auto_strategy(pass_pct, options):
+        """Map a pass percentage (0-100) to a grade (0-100) per the chosen strategy.
+
+        strategy:
+          - 'pass_percentage': grade = pass_pct (identity)
+          - 'range': floor at min_marks, then linearly scale the [0,100] pass
+             range into [min_marks, max_marks]. If full_marks_on_all_pass, a
+             100% pass always yields max_marks.
+          - 'formula': grade = pass_pct * multiplier + offset (then clamped)
+        """
+        strategy = options.get('strategy', 'pass_percentage')
+        try:
+            if strategy == 'range':
+                min_marks = float(options.get('min_marks', 0))
+                max_marks = float(options.get('max_marks', 100))
+                grade = min_marks + (pass_pct / 100.0) * (max_marks - min_marks)
+                if options.get('full_marks_on_all_pass') and pass_pct >= 99.999:
+                    grade = max_marks
+                return grade
+            if strategy == 'formula':
+                mult = float(options.get('multiplier', 1.0))
+                offset = float(options.get('offset', 0.0))
+                return pass_pct * mult + offset
+            # default: identity
+            return pass_pct
+        except (TypeError, ValueError):
+            return pass_pct
+
+    @action(detail=True, methods=['post'], url_path='auto-grade')
+    def auto_grade(self, request, pk=None):
+        """Automatically grade all students from test-case pass percentage.
+
+        Body:
+          strategy: 'pass_percentage' | 'range' | 'formula'
+          min_marks, max_marks, full_marks_on_all_pass   (range)
+          multiplier, offset                             (formula)
+          overwrite_manual: bool  — if False (default), skip attempts that
+                            already have a manual_score (e.g. cluster-graded).
+          preview: bool — if True, compute and return the grades WITHOUT saving.
+        """
+        from submissions.models import SubmissionAttempt
+        from submissions.services import update_gradebook
+
+        assignment = self.get_object()
+        if not self._is_grader(assignment, request.user):
+            return Response({'message': 'Not authorized.'}, status=status.HTTP_403_FORBIDDEN)
+
+        options = request.data or {}
+        preview = bool(options.get('preview', False))
+        overwrite_manual = bool(options.get('overwrite_manual', False))
+        # Give 0 marks when a submission has no source code (default on).
+        zero_if_missing_code = bool(options.get('zero_if_missing_code', True))
+
+        graded = 0
+        skipped = 0
+        missing_code = 0
+        affected_students = set()
+        sample = []
+
+        for aq in assignment.assignmentquestion_set.select_related('question'):
+            num_tests = len(aq.question.test_cases or [])
+            latest_attempts = (
+                SubmissionAttempt.objects
+                .filter(assignment_question=aq)
+                .order_by('student_id', '-created_at')
+                .distinct('student_id')
+                .select_related('student')
+                .prefetch_related('test_results')
+            )
+            for attempt in latest_attempts:
+                if attempt.manual_score is not None and not overwrite_manual:
+                    skipped += 1
+                    continue
+
+                code_missing = not (attempt.source_code or '').strip()
+                if zero_if_missing_code and code_missing:
+                    pass_pct = 0.0
+                    grade = 0.0
+                    missing_code += 1
+                else:
+                    pass_pct = self._question_pass_percentage(attempt, num_tests)
+                    grade = round(max(0.0, min(100.0, self._apply_auto_strategy(pass_pct, options))), 2)
+
+                if len(sample) < 8:
+                    sample.append({
+                        'student': attempt.student.username,
+                        'question': aq.question.title,
+                        'pass_percentage': round(pass_pct, 1),
+                        'grade': grade,
+                        'code_missing': code_missing,
+                    })
+
+                if not preview:
+                    attempt.manual_score = grade
+                    attempt.save(update_fields=['manual_score'])
+                graded += 1
+                affected_students.add(attempt.student_id)
+
+        # Recalculate gradebook for affected students (skip on preview).
+        if not preview:
+            for sid in affected_students:
+                try:
+                    student = assignment.module.class_obj.enrollments.get(user_id=sid).user
+                except Exception:
+                    from django.contrib.auth import get_user_model
+                    student = get_user_model().objects.filter(id=sid).first()
+                if student:
+                    try:
+                        update_gradebook(student, assignment)
+                    except Exception as exc:
+                        logger.error(f"auto-grade gradebook update failed for {sid}: {exc}")
+
+        return Response({
+            'success': True,
+            'preview': preview,
+            'graded': graded,
+            'skipped_manual': skipped,
+            'missing_code_zeroed': missing_code,
+            'students_affected': len(affected_students),
+            'strategy': options.get('strategy', 'pass_percentage'),
+            'sample': sample,
+            'message': (
+                f"Preview: {graded} submissions would be graded "
+                f"({skipped} manual skipped, {missing_code} missing-code → 0)."
+                if preview else
+                f"Auto-graded {graded} submissions across {len(affected_students)} students "
+                f"({skipped} manual grades kept, {missing_code} missing-code → 0)."
+            ),
         })
 
 
@@ -756,3 +1343,127 @@ class QuestionViewSet(viewsets.ModelViewSet):
             ConfigGenerator.generate_question_config(question)
         except Exception as e:
             print(f"Warning: Failed to generate config for question {question.id}: {e}")
+
+    @action(detail=False, methods=['post'], url_path='bulk-import')
+    def bulk_import(self, request):
+        """
+        Bulk import questions from a JSON file.
+        Expects multipart form data with 'json_file' field containing JSON data.
+        """
+        import json
+        import uuid
+        from django.utils.text import slugify
+        from .services import QuestionImportValidator, ConfigGenerator
+        from gamification.models import PracticeQuestionLibrary
+
+        # Get JSON file from request
+        if 'json_file' not in request.FILES:
+            return Response(
+                {'success': False, 'error': 'No json_file provided'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        json_file = request.FILES['json_file']
+
+        # Read and parse JSON
+        try:
+            data = json.loads(json_file.read().decode('utf-8'))
+        except json.JSONDecodeError as e:
+            return Response(
+                {'success': False, 'error': f'Invalid JSON: {str(e)}'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        except Exception as e:
+            return Response(
+                {'success': False, 'error': f'Error reading file: {str(e)}'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Validate
+        validator = QuestionImportValidator()
+        is_valid, validated_questions, errors = validator.validate(data)
+
+        if not is_valid:
+            return Response(
+                {'success': False, 'errors': errors},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Import questions
+        created_count = 0
+        test_case_count = 0
+        skipped = []
+
+        for question_data in validated_questions:
+            try:
+                # Generate slug if not provided
+                slug = question_data.get('slug')
+                if not slug:
+                    base_slug = slugify(question_data['title'])
+                    if not base_slug:
+                        base_slug = 'question'
+                    base_slug = base_slug[:40]
+                    slug = f"{base_slug}-{str(uuid.uuid4())[:8]}"
+
+                # Check for duplicate slug
+                if Question.objects.filter(slug=slug).exists():
+                    skipped.append({'title': question_data['title'], 'error': f'Slug "{slug}" already exists'})
+                    continue
+
+                # Prepare config
+                config = question_data.get('config', {})
+                if question_data['question_type'] == 'coding' and 'entry_point' in question_data:
+                    config['entry_point'] = question_data['entry_point']
+
+                # Create question
+                question = Question.objects.create(
+                    title=question_data['title'],
+                    slug=slug,
+                    description=question_data['description'],
+                    question_type=question_data['question_type'],
+                    test_cases=question_data['test_cases'],
+                    difficulty=question_data.get('difficulty', 'Medium'),
+                    category=question_data.get('category', 'General'),
+                    point_value=question_data.get('point_value', 100),
+                    starter_code=question_data.get('starter_code', ''),
+                    reference_solution=question_data.get('reference_solution', ''),
+                    tags=question_data.get('tags', []),
+                    config=config,
+                    created_by=request.user
+                )
+
+                # Generate config file
+                try:
+                    ConfigGenerator.generate_question_config(question)
+                except Exception as e:
+                    logger.warning(f"Failed to generate config for {question.slug}: {str(e)}")
+
+                # Add to Practice Question Library
+                try:
+                    PracticeQuestionLibrary.objects.get_or_create(
+                        question=question,
+                        defaults={
+                            'is_public': True,
+                            'tags': question.tags
+                        }
+                    )
+                except Exception as e:
+                    logger.warning(f"Failed to add {question.slug} to Practice Library: {str(e)}")
+
+                test_case_count += len(question.test_cases)
+                created_count += 1
+            except Exception as e:
+                skipped.append({'title': question_data.get('title', 'Unknown'), 'error': str(e)})
+
+        response_data = {
+            'success': True,
+            'created': created_count,
+            'test_cases_added': test_case_count,
+            'skipped': len(skipped),
+            'details': f'Successfully imported {created_count} questions with {test_case_count} test cases'
+        }
+
+        if skipped:
+            response_data['skipped_details'] = skipped
+
+        return Response(response_data, status=status.HTTP_201_CREATED)

@@ -1,0 +1,213 @@
+{
+  "questions": [
+    {
+      "title": "Print Hello, World!",
+      "slug": "basic-print-hello-world",
+      "description": "Write a function `hello()` that returns the string `Hello, World!`.\n\nExample:\n- hello() -> \"Hello, World!\"",
+      "difficulty": "Easy",
+      "category": "Basics",
+      "question_type": "coding",
+      "entry_point": "hello",
+      "starter_code": "def hello():\n    # return the greeting\n    pass",
+      "reference_solution": "def hello():\n    return \"Hello, World!\"",
+      "point_value": 100,
+      "tags": ["basics", "strings", "print"],
+      "elo_rating": 800.0,
+      "ref_time_sec": 60.0,
+      "source": "manual",
+      "test_cases": [
+        {"input": "hello()", "expected_output": "\"Hello, World!\"", "is_hidden": false, "points": 10}
+      ]
+    },
+    {
+      "title": "Add Two Numbers",
+      "slug": "basic-add-two-numbers",
+      "description": "Write a function `add(a, b)` that returns the sum of two numbers.\n\nExample:\n- add(2, 3) -> 5",
+      "difficulty": "Easy",
+      "category": "Basics",
+      "question_type": "coding",
+      "entry_point": "add",
+      "starter_code": "def add(a, b):\n    # return a + b\n    pass",
+      "reference_solution": "def add(a, b):\n    return a + b",
+      "point_value": 100,
+      "tags": ["basics", "arithmetic", "functions"],
+      "elo_rating": 810.0,
+      "ref_time_sec": 60.0,
+      "source": "manual",
+      "test_cases": [
+        {"input": "add(2, 3)", "expected_output": "5", "is_hidden": false, "points": 10},
+        {"input": "add(-1, 1)", "expected_output": "0", "is_hidden": false, "points": 10},
+        {"input": "add(100, 250)", "expected_output": "350", "is_hidden": true, "points": 10}
+      ]
+    },
+    {
+      "title": "Sum 1 to N",
+      "slug": "basic-sum-1-to-n",
+      "description": "Write a function `sum_to_n(n)` that returns the sum of all integers from 1 to n (inclusive) using a loop.\n\nExample:\n- sum_to_n(5) -> 15",
+      "difficulty": "Easy",
+      "category": "Basics",
+      "question_type": "coding",
+      "entry_point": "sum_to_n",
+      "starter_code": "def sum_to_n(n):\n    # use a loop to add 1..n\n    pass",
+      "reference_solution": "def sum_to_n(n):\n    total = 0\n    for i in range(1, n + 1):\n        total += i\n    return total",
+      "point_value": 100,
+      "tags": ["basics", "loops", "math"],
+      "elo_rating": 830.0,
+      "ref_time_sec": 90.0,
+      "source": "manual",
+      "test_cases": [
+        {"input": "sum_to_n(5)", "expected_output": "15", "is_hidden": false, "points": 10},
+        {"input": "sum_to_n(1)", "expected_output": "1", "is_hidden": false, "points": 10},
+        {"input": "sum_to_n(10)", "expected_output": "55", "is_hidden": true, "points": 10}
+      ]
+    },
+    {
+      "title": "Is Even",
+      "slug": "basic-is-even",
+      "description": "Write a function `is_even(n)` that returns `True` if n is even and `False` otherwise.\n\nExample:\n- is_even(4) -> True",
+      "difficulty": "Easy",
+      "category": "Basics",
+      "question_type": "coding",
+      "entry_point": "is_even",
+      "starter_code": "def is_even(n):\n    # return True if n is even\n    pass",
+      "reference_solution": "def is_even(n):\n    return n % 2 == 0",
+      "point_value": 100,
+      "tags": ["basics", "conditionals", "math"],
+      "elo_rating": 820.0,
+      "ref_time_sec": 60.0,
+      "source": "manual",
+      "test_cases": [
+        {"input": "is_even(4)", "expected_output": "True", "is_hidden": false, "points": 10},
+        {"input": "is_even(7)", "expected_output": "False", "is_hidden": false, "points": 10},
+        {"input": "is_even(0)", "expected_output": "True", "is_hidden": true, "points": 10}
+      ]
+    },
+    {
+      "title": "Maximum of Two",
+      "slug": "basic-max-of-two",
+      "description": "Write a function `max_of_two(a, b)` that returns the larger of two numbers.\n\nExample:\n- max_of_two(3, 8) -> 8",
+      "difficulty": "Easy",
+      "category": "Basics",
+      "question_type": "coding",
+      "entry_point": "max_of_two",
+      "starter_code": "def max_of_two(a, b):\n    # return the larger value\n    pass",
+      "reference_solution": "def max_of_two(a, b):\n    return a if a > b else b",
+      "point_value": 100,
+      "tags": ["basics", "conditionals"],
+      "elo_rating": 825.0,
+      "ref_time_sec": 60.0,
+      "source": "manual",
+      "test_cases": [
+        {"input": "max_of_two(3, 8)", "expected_output": "8", "is_hidden": false, "points": 10},
+        {"input": "max_of_two(10, 2)", "expected_output": "10", "is_hidden": false, "points": 10},
+        {"input": "max_of_two(5, 5)", "expected_output": "5", "is_hidden": true, "points": 10}
+      ]
+    },
+    {
+      "title": "Count Vowels",
+      "slug": "basic-count-vowels",
+      "description": "Write a function `count_vowels(s)` that returns the number of vowels (a, e, i, o, u) in the string s (lowercase only).\n\nExample:\n- count_vowels(\"hello\") -> 2",
+      "difficulty": "Easy",
+      "category": "Basics",
+      "question_type": "coding",
+      "entry_point": "count_vowels",
+      "starter_code": "def count_vowels(s):\n    # count a, e, i, o, u\n    pass",
+      "reference_solution": "def count_vowels(s):\n    return sum(1 for c in s if c in 'aeiou')",
+      "point_value": 100,
+      "tags": ["basics", "strings", "loops"],
+      "elo_rating": 900.0,
+      "ref_time_sec": 120.0,
+      "source": "manual",
+      "test_cases": [
+        {"input": "count_vowels(\"hello\")", "expected_output": "2", "is_hidden": false, "points": 10},
+        {"input": "count_vowels(\"xyz\")", "expected_output": "0", "is_hidden": false, "points": 10},
+        {"input": "count_vowels(\"aeiou\")", "expected_output": "5", "is_hidden": true, "points": 10}
+      ]
+    },
+    {
+      "title": "Reverse a String",
+      "slug": "basic-reverse-string",
+      "description": "Write a function `reverse_string(s)` that returns the string s reversed.\n\nExample:\n- reverse_string(\"abc\") -> \"cba\"",
+      "difficulty": "Easy",
+      "category": "Basics",
+      "question_type": "coding",
+      "entry_point": "reverse_string",
+      "starter_code": "def reverse_string(s):\n    # return s reversed\n    pass",
+      "reference_solution": "def reverse_string(s):\n    return s[::-1]",
+      "point_value": 100,
+      "tags": ["basics", "strings"],
+      "elo_rating": 870.0,
+      "ref_time_sec": 90.0,
+      "source": "manual",
+      "test_cases": [
+        {"input": "reverse_string(\"abc\")", "expected_output": "\"cba\"", "is_hidden": false, "points": 10},
+        {"input": "reverse_string(\"\")", "expected_output": "\"\"", "is_hidden": false, "points": 10},
+        {"input": "reverse_string(\"racecar\")", "expected_output": "\"racecar\"", "is_hidden": true, "points": 10}
+      ]
+    },
+    {
+      "title": "Factorial",
+      "slug": "basic-factorial",
+      "description": "Write a function `factorial(n)` that returns n! (the product of all integers from 1 to n). factorial(0) is 1.\n\nExample:\n- factorial(5) -> 120",
+      "difficulty": "Easy",
+      "category": "Basics",
+      "question_type": "coding",
+      "entry_point": "factorial",
+      "starter_code": "def factorial(n):\n    # return n!\n    pass",
+      "reference_solution": "def factorial(n):\n    result = 1\n    for i in range(2, n + 1):\n        result *= i\n    return result",
+      "point_value": 100,
+      "tags": ["basics", "loops", "math"],
+      "elo_rating": 950.0,
+      "ref_time_sec": 120.0,
+      "source": "manual",
+      "test_cases": [
+        {"input": "factorial(5)", "expected_output": "120", "is_hidden": false, "points": 10},
+        {"input": "factorial(0)", "expected_output": "1", "is_hidden": false, "points": 10},
+        {"input": "factorial(6)", "expected_output": "720", "is_hidden": true, "points": 10}
+      ]
+    },
+    {
+      "title": "FizzBuzz Value",
+      "slug": "basic-fizzbuzz-value",
+      "description": "Write a function `fizzbuzz(n)` that returns:\n- \"FizzBuzz\" if n is divisible by both 3 and 5,\n- \"Fizz\" if divisible by 3,\n- \"Buzz\" if divisible by 5,\n- otherwise the number n as a string.\n\nExample:\n- fizzbuzz(15) -> \"FizzBuzz\"",
+      "difficulty": "Easy",
+      "category": "Basics",
+      "question_type": "coding",
+      "entry_point": "fizzbuzz",
+      "starter_code": "def fizzbuzz(n):\n    # return Fizz / Buzz / FizzBuzz / str(n)\n    pass",
+      "reference_solution": "def fizzbuzz(n):\n    if n % 15 == 0:\n        return \"FizzBuzz\"\n    if n % 3 == 0:\n        return \"Fizz\"\n    if n % 5 == 0:\n        return \"Buzz\"\n    return str(n)",
+      "point_value": 100,
+      "tags": ["basics", "conditionals", "math"],
+      "elo_rating": 980.0,
+      "ref_time_sec": 150.0,
+      "source": "manual",
+      "test_cases": [
+        {"input": "fizzbuzz(15)", "expected_output": "\"FizzBuzz\"", "is_hidden": false, "points": 10},
+        {"input": "fizzbuzz(3)", "expected_output": "\"Fizz\"", "is_hidden": false, "points": 10},
+        {"input": "fizzbuzz(5)", "expected_output": "\"Buzz\"", "is_hidden": false, "points": 10},
+        {"input": "fizzbuzz(7)", "expected_output": "\"7\"", "is_hidden": true, "points": 10}
+      ]
+    },
+    {
+      "title": "Count to N (list)",
+      "slug": "basic-count-to-n",
+      "description": "Write a function `count_to_n(n)` that returns a list of integers from 1 to n using a loop.\n\nExample:\n- count_to_n(3) -> [1, 2, 3]",
+      "difficulty": "Easy",
+      "category": "Basics",
+      "question_type": "coding",
+      "entry_point": "count_to_n",
+      "starter_code": "def count_to_n(n):\n    # build a list 1..n\n    pass",
+      "reference_solution": "def count_to_n(n):\n    result = []\n    for i in range(1, n + 1):\n        result.append(i)\n    return result",
+      "point_value": 100,
+      "tags": ["basics", "loops", "lists"],
+      "elo_rating": 860.0,
+      "ref_time_sec": 120.0,
+      "source": "manual",
+      "test_cases": [
+        {"input": "count_to_n(3)", "expected_output": "[1, 2, 3]", "is_hidden": false, "points": 10},
+        {"input": "count_to_n(1)", "expected_output": "[1]", "is_hidden": false, "points": 10},
+        {"input": "count_to_n(5)", "expected_output": "[1, 2, 3, 4, 5]", "is_hidden": true, "points": 10}
+      ]
+    }
+  ]
+}

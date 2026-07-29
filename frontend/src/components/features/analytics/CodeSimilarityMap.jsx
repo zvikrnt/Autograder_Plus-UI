@@ -1,10 +1,13 @@
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "../../ui/card";
 import { Info } from "lucide-react";
+import { API_CONFIG } from "../../../config/api";
+
 
 export default function CodeSimilarityMap({ submissions, url }) {
-    // Determine the full URL for the media path (url is already an absolute path /media/...)
-    const fullUrl = url || null;
+    // Determine the full URL for the media path (url is typically a relative path like /media/...)
+    const fullUrl = url ? (url.startsWith('/media/') ? `${API_CONFIG.BASE_URL.replace(/\/api$/, '')}${url}` : url) : null;
     console.log("UMAP Iframe URL:", fullUrl);
+
 
     return (
         <Card className="h-full">

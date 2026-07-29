@@ -17,7 +17,6 @@ import {
     Sparkles,
     Brain
 } from "lucide-react";
-import { motion, AnimatePresence } from "framer-motion";
 
 import TeacherLayout from "../../components/layout/TeacherLayout";
 import { Button } from "../../components/ui/button";
@@ -28,6 +27,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "../../components/ui/ca
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../../components/ui/tabs";
 import { submissionService } from "../../services/submissionService";
 import LearningTrajectory from "../../components/features/analytics/LearningTrajectory";
+import ErrorBoundary from "../../components/features/gamification/ErrorBoundary";
 
 export default function GradingInterface() {
     const { assignmentId, studentId } = useParams();
@@ -109,7 +109,7 @@ export default function GradingInterface() {
 
     const handleSave = async () => {
         // Find all dirty entries
-        const dirtyEntries = Object.entries(gradesMap).filter(([_, data]) => data.isDirty);
+        const dirtyEntries = Object.entries(gradesMap).filter(([, data]) => data.isDirty);
 
         if (dirtyEntries.length === 0) {
             // Nothing to save, just go back
@@ -121,7 +121,7 @@ export default function GradingInterface() {
             setSaving(true);
 
             // Execute all saves concurrently
-            await Promise.all(dirtyEntries.map(([qId, data]) => {
+            await Promise.all(dirtyEntries.map(([, data]) => {
                 if (!data.submissionId) return Promise.resolve();
                 return submissionService.gradeSubmission(data.submissionId, {
                     manual_score: data.score,
@@ -139,8 +139,71 @@ export default function GradingInterface() {
         }
     };
 
+    const isSubmissionCorrect = (item) => {
+        const sub = item?.submission;
+        if (!sub) return false;
+        if (sub.status === "success") return true;
+        const results = sub.test_results || [];
+        return results.length > 0 && results.every((r) => r.status === "pass");
+    };
+
+    const handleAutoSaveCorrectGrades = async () => {
+        const correctItems = report.filter(isSubmissionCorrect);
+        const updates = correctItems
+            .map((item) => {
+                const qid = item.question.id;
+                const current = gradesMap[qid];
+                const submissionId = current?.submissionId || item.submission?.id;
+                if (!submissionId) return null;
+                const feedback = current?.feedback ?? item.submission?.feedback_text ?? "";
+                return { qid, submissionId, feedback };
+            })
+            .filter(Boolean);
+
+        if (updates.length === 0) {
+            alert("No correct submissions found to auto-save.");
+            return;
+        }
+
+        try {
+            setSaving(true);
+            await Promise.all(
+                updates.map((u) =>
+                    submissionService.gradeSubmission(u.submissionId, {
+                        manual_score: 100,
+                        feedback_text: u.feedback,
+                    })
+                )
+            );
+
+            setGradesMap((prev) => {
+                const next = { ...prev };
+                updates.forEach((u) => {
+                    const prevEntry = next[u.qid] || {};
+                    next[u.qid] = {
+                        ...prevEntry,
+                        score: 100,
+                        feedback: u.feedback,
+                        submissionId: u.submissionId,
+                        isDirty: false,
+                    };
+                });
+                return next;
+            });
+
+            alert(`Auto-saved 100% for ${updates.length} correct question${updates.length === 1 ? "" : "s"}.`);
+        } catch (err) {
+            console.error("Failed to auto-save correct grades:", err);
+            alert("Failed to auto-save correct grades. Please try again.");
+        } finally {
+            setSaving(false);
+        }
+    };
+
     const currentItem = report.find(item => item.question.id === selectedQuestionId);
     const submission = currentItem?.submission;
+    const currentQuestionIndex = report.findIndex(item => item.question.id === selectedQuestionId);
+    const autoSavableCorrectCount = report.filter(isSubmissionCorrect).length;
 
     // Derived values for current inputs
     const currentGradeData = selectedQuestionId && gradesMap[selectedQuestionId]
@@ -156,9 +219,9 @@ export default function GradingInterface() {
     }
 
     return (
-        <div className="h-screen flex flex-col bg-gray-50">
+        <div className="h-screen flex flex-col bg-gray-50 dark:bg-gray-900">
             {/* Top Bar */}
-            <header className="h-16 bg-white border-b px-4 flex items-center justify-between shrink-0 z-10 shadow-sm">
+            <header className="h-16 bg-white dark:bg-gray-800 border-b px-4 flex items-center justify-between shrink-0 z-10 shadow-sm">
                 <div className="flex items-center gap-4">
                     <Button variant="ghost" size="icon" asChild>
                         <Link to={`/teacher/assignment/${assignmentId}`}>
@@ -168,11 +231,17 @@ export default function GradingInterface() {
                     <div>
                         <h1 className="text-lg font-bold text-gray-900">Grading Student</h1>
                         <p className="text-xs text-gray-500 flex items-center gap-2">
-                            Assignment ID: {assignmentId.slice(0, 8)}... <span className="text-gray-300">|</span> Student ID: {studentId.slice(0, 8)}...
+                            Assignment ID: {assignmentId?.slice(0, 8)}... <span className="text-gray-300">|</span> Student ID: {studentId?.slice(0, 8)}...
                         </p>
                     </div>
                 </div>
                 <div className="flex items-center gap-2">
+                    {autoSavableCorrectCount > 0 && (
+                        <Button variant="outline" onClick={handleAutoSaveCorrectGrades} className="gap-2" disabled={saving}>
+                            <CheckCircle2 className="w-4 h-4" />
+                            Auto-Save Correct ({autoSavableCorrectCount})
+                        </Button>
+                    )}
                     {submission && (
                         <Button onClick={handleSave} className="gap-2" disabled={saving}>
                             {saving ? <Loader2 className="animate-spin w-4 h-4" /> : <Save className="w-4 h-4" />}
@@ -182,80 +251,113 @@ export default function GradingInterface() {
                 </div>
             </header>
 
+            {/* Question Navigation (Top Center) */}
+            <div className="h-14 bg-white dark:bg-gray-800 border-b px-4 flex items-center justify-center shrink-0">
+                <div className="w-full max-w-5xl overflow-x-auto">
+                    <div className="mx-auto flex w-max items-center gap-2 py-1">
+                        {report.map((item, idx) => {
+                            const isDirty = gradesMap[item.question.id]?.isDirty;
+                            const isSelected = selectedQuestionId === item.question.id;
+                            const passed = item.submission?.test_results?.filter(r => r.status === 'pass').length ?? 0;
+                            const total = item.submission?.test_results?.length ?? 0;
+
+                            return (
+                                <button
+                                    key={item.question.id}
+                                    onClick={() => setSelectedQuestionId(item.question.id)}
+                                    className={`px-3 py-1.5 rounded-full border text-xs font-medium transition-colors flex items-center gap-1.5
+                                    ${isSelected ? 'border-indigo-500 bg-indigo-50 text-indigo-700' : 'border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-600 hover:bg-gray-50 dark:hover:bg-gray-800'}
+                                `}
+                                >
+                                    <span>Q{idx + 1}</span>
+                                    {total > 0 && <span className="text-[10px] opacity-75">{passed}/{total}</span>}
+                                    {isDirty && <span className="text-amber-500 text-[10px]">●</span>}
+                                </button>
+                            );
+                        })}
+                    </div>
+                </div>
+            </div>
+
             {/* Main Content - Split Pane */}
             <div className="flex-1 flex overflow-hidden">
-
-                {/* 1. Sidebar: Question List */}
-                <div className="w-64 bg-white border-r flex flex-col overflow-y-auto">
-                    <div className="p-4 border-b bg-gray-50">
-                        <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Questions</span>
-                    </div>
-                    {report.map((item, idx) => {
-                        const isDirty = gradesMap[item.question.id]?.isDirty;
-                        const scoreToShow = gradesMap[item.question.id]?.score;
-                        const maxPoints = item.max_points || 10;
-
-                        return (
-                            <button
-                                key={item.question.id}
-                                onClick={() => setSelectedQuestionId(item.question.id)}
-                                className={`p-4 text-left border-b hover:bg-gray-50 transition-colors flex items-start gap-3
-                                ${selectedQuestionId === item.question.id ? 'bg-indigo-50 border-l-4 border-l-indigo-600' : 'border-l-4 border-l-transparent'}
-                            `}
-                            >
-                                <div className={`mt-0.5 w-2 h-2 rounded-full shrink-0 ${isDirty ? 'bg-amber-500' : // Orange dot for unsaved changes
-                                    item.status === 'success' ? 'bg-green-500' :
-                                        item.status === 'fail' ? 'bg-red-500' :
-                                            'bg-gray-300'
-                                    }`} />
-                                <div>
-                                    <p className={`text-sm font-medium ${selectedQuestionId === item.question.id ? 'text-indigo-900' : 'text-gray-700'}`}>
-                                        {item.question.title} {isDirty && <span className="text-amber-600 text-[10px] font-bold ml-1">(Unsaved)</span>}
+                <ErrorBoundary
+                    key={selectedQuestionId}
+                    title="Couldn't display this question"
+                    message="This submission has data we couldn't render. You can still grade it from the panel, switch questions, or retry."
+                >
+                {currentItem ? (
+                        <>
+                            {/* 1. Left Panel: Question & Description */}
+                            <aside className="w-[340px] shrink-0 bg-white dark:bg-gray-800 border-r overflow-y-auto">
+                                <div className="p-5 border-b bg-gray-50 dark:bg-gray-900">
+                                    <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                                        Question {currentQuestionIndex >= 0 ? currentQuestionIndex + 1 : "—"}
                                     </p>
-                                    <p className="text-xs text-gray-500 mt-1 line-clamp-1">
-                                        {item.submission ? (() => {
-                                            const passed = item.submission.test_results?.filter(r => r.status === 'pass').length ?? 0;
-                                            const total = item.submission.test_results?.length ?? 0;
-                                            const hasManual = item.submission.manual_score !== null && item.submission.manual_score !== undefined;
-                                            if (hasManual) {
-                                                return <span className="text-amber-600 font-medium">Override: {item.submission.manual_score} pts</span>;
-                                            }
-                                            if (total > 0) {
-                                                return <span className={passed === total ? 'text-green-600 font-medium' : 'text-red-500 font-medium'}>{passed}/{total} passed</span>;
-                                            }
-                                            return <span className={item.status === 'success' ? 'text-green-600' : 'text-gray-500'}>Q{idx + 1} • {item.status}</span>;
-                                        })() : <span className="italic">Not Attempted</span>}
+                                    <h2 className="mt-1 text-base font-semibold text-gray-900 leading-snug">
+                                        {currentItem.question.title || "Untitled Question"}
+                                    </h2>
+                                    <div className="mt-3 flex items-center gap-2">
+                                        <span className="text-[11px] text-gray-600 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 px-2 py-0.5 rounded-full">
+                                            {currentItem.question.difficulty || "Unspecified"}
+                                        </span>
+                                        {submission ? (
+                                            <span className={`text-[11px] px-2 py-0.5 rounded-full border ${submission.status === 'success'
+                                                ? 'text-green-700 bg-green-50 border-green-200'
+                                                : 'text-red-700 bg-red-50 border-red-200'
+                                                }`}>
+                                                {submission.status}
+                                            </span>
+                                        ) : (
+                                            <span className="text-[11px] text-gray-600 bg-gray-100 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 px-2 py-0.5 rounded-full">
+                                                not attempted
+                                            </span>
+                                        )}
+                                    </div>
+                                </div>
+                                <div className="p-5">
+                                    <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Description</h3>
+                                    <p className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">
+                                        {currentItem.question.description || "No question description available."}
                                     </p>
                                 </div>
-                            </button>
-                        )
-                    })}
-                </div>
+                            </aside>
 
-                {/* 2. Main Area */}
-                {currentItem ? (
-                    submission ? (
-                        <>
+                            {/* 2. Main Area */}
+                            {submission ? (
+                                <>
                             {/* Code Viewer (Center) */}
                             <div className="flex-1 bg-[#1e1e1e] text-gray-200 overflow-auto flex flex-col font-mono text-sm relative">
-                                <div className="sticky top-0 z-10 bg-[#252526] border-b border-[#333] px-4 py-2 flex items-center justify-between text-xs text-gray-400">
-                                    <div className="flex items-center gap-2">
-                                        <FileCode2 className="w-3.5 h-3.5" />
-                                        <span>{submission.language || "python"}</span>
+                                    <div className="sticky top-0 z-10 bg-[#252526] border-b border-[#333] px-4 py-2 flex items-center justify-between text-xs text-gray-400">
+                                        <div className="flex items-center gap-2">
+                                            <FileCode2 className="w-3.5 h-3.5" />
+                                            <span>{submission.language || "python"}</span>
+                                        </div>
+                                        <span>Read-only</span>
                                     </div>
-                                    <span>Read-only</span>
-                                </div>
-                                <div className="p-4">
-                                    <pre className="counter-reset: line font-mono leading-relaxed">
-                                        <code>
-                                            {submission.code_content || "# No code provided"}
-                                        </code>
-                                    </pre>
-                                </div>
+                                    <div className="p-4">
+                                        {submission.code_content && submission.code_content.trim() ? (
+                                            <pre className="counter-reset: line font-mono leading-relaxed">
+                                                <code>
+                                                    {submission.code_content}
+                                                </code>
+                                            </pre>
+                                        ) : (
+                                            <div className="flex flex-col items-center justify-center py-16 text-gray-400 gap-2">
+                                                <FileCode2 className="w-10 h-10 opacity-50" />
+                                                <p className="text-sm font-medium">Code missing</p>
+                                                <p className="text-xs text-gray-500 text-center max-w-xs">
+                                                    This student has a submission record but no source code was saved
+                                                    {submission.status ? ` (status: ${submission.status})` : ""}.
+                                                    You can still assign a grade on the right.
+                                                </p>
+                                            </div>
+                                        )}
+                                    </div>
                             </div>
 
                             {/* Grading Tools (Right) */}
-                            <div className="w-[400px] border-l bg-white flex flex-col shadow-xl z-20 h-full min-h-0">
+                            <div className="w-[400px] border-l bg-white dark:bg-gray-800 flex flex-col shadow-xl z-20 h-full min-h-0">
                                 <Tabs defaultValue="autograder" className="flex-1 flex flex-col min-h-0">
                                     <div className="border-b px-4 shrink-0">
                                         <TabsList className="w-full justify-start h-12 bg-transparent p-0 gap-4">
@@ -279,7 +381,7 @@ export default function GradingInterface() {
                                                     <CardTitle className="text-sm font-medium flex justify-between">
                                                         <span>Test Suite Results</span>
                                                         <span className={submission.status === 'success' ? "text-green-600 font-bold" : "text-red-600 font-bold"}>
-                                                            {submission.status.toUpperCase()}
+                                                            {(submission.status || 'unknown').toUpperCase()}
                                                         </span>
                                                     </CardTitle>
                                                 </CardHeader>
@@ -294,6 +396,12 @@ export default function GradingInterface() {
                                                             return <p className="text-sm text-gray-500">No test results available.</p>;
                                                         }
 
+                                                        // Render any value safely as text (objects/arrays → JSON).
+                                                        const asText = (v, fallback = "N/A") => {
+                                                            if (v === null || v === undefined || v === "") return fallback;
+                                                            if (typeof v === "object") { try { return JSON.stringify(v); } catch { return String(v); } }
+                                                            return String(v);
+                                                        };
                                                         return results.map((res, i) => {
                                                             const tc = testCases[i] || {};
                                                             return (
@@ -301,34 +409,34 @@ export default function GradingInterface() {
                                                                     <div className="flex items-center gap-2 font-medium">
                                                                         {res.status === 'pass' ? <CheckCircle2 className="w-4 h-4 text-green-600" /> : <XCircle className="w-4 h-4 text-red-600" />}
                                                                         <span>
-                                                                            {tc.concept || `Test Case ${i + 1}`}
+                                                                            {tc.concept ? asText(tc.concept) : `Test Case ${i + 1}`}
                                                                         </span>
                                                                         {tc.concept && <span className="text-xs font-normal text-gray-500 px-2 border-l ml-2">Test Case {i + 1}</span>}
 
-                                                                        <span className="uppercase text-xs font-bold opacity-70 ml-auto">{res.status}</span>
+                                                                        <span className="uppercase text-xs font-bold opacity-70 ml-auto">{asText(res.status, "")}</span>
                                                                     </div>
 
                                                                     {tc.explanation && (
-                                                                        <div className="text-xs text-gray-600 italic border-l-2 border-gray-300 pl-2 py-0.5 mb-2">
-                                                                            "{tc.explanation}"
+                                                                        <div className="text-xs text-gray-600 italic border-l-2 border-gray-300 dark:border-gray-600 pl-2 py-0.5 mb-2">
+                                                                            "{asText(tc.explanation, "")}"
                                                                         </div>
                                                                     )}
 
                                                                     <div className="grid grid-cols-2 gap-2 mt-2 text-xs">
                                                                         <div>
                                                                             <span className="font-semibold text-gray-500 block">Input:</span>
-                                                                            <code className="bg-white/50 px-1 py-0.5 rounded block whitespace-pre-wrap">{tc.input || "N/A"}</code>
+                                                                            <code className="bg-white/50 px-1 py-0.5 rounded block whitespace-pre-wrap">{asText(tc.input)}</code>
                                                                         </div>
                                                                         <div>
                                                                             <span className="font-semibold text-gray-500 block">Expected:</span>
-                                                                            <code className="bg-white/50 px-1 py-0.5 rounded block whitespace-pre-wrap">{tc.output || "N/A"}</code>
+                                                                            <code className="bg-white/50 px-1 py-0.5 rounded block whitespace-pre-wrap">{asText(tc.output ?? tc.expected_output)}</code>
                                                                         </div>
                                                                     </div>
 
                                                                     {res.status !== 'pass' && (
                                                                         <div className="mt-2 pt-2 border-t border-red-200/50">
                                                                             <span className="font-semibold text-red-700 block text-xs">Actual Output:</span>
-                                                                            <code className="bg-white/50 px-1 py-0.5 rounded block whitespace-pre-wrap text-xs font-mono">{res.actual_output || res.error_message || "(Empty)"}</code>
+                                                                            <code className="bg-white/50 px-1 py-0.5 rounded block whitespace-pre-wrap text-xs font-mono">{asText(res.actual_output || res.error_message, "(Empty)")}</code>
                                                                         </div>
                                                                     )}
                                                                 </div>
@@ -380,7 +488,7 @@ export default function GradingInterface() {
 
                                                                 {/* Tags (old format or supplementary) */}
                                                                 {tags.length > 0 && (
-                                                                    <div className="p-3 bg-white rounded-lg border border-indigo-100/50 shadow-sm">
+                                                                    <div className="p-3 bg-white dark:bg-gray-800 rounded-lg border border-indigo-100/50 shadow-sm">
                                                                         <span className="text-[10px] text-gray-500 uppercase tracking-wider font-bold block mb-1.5">Code Tags</span>
                                                                         <div className="flex flex-wrap gap-1.5">
                                                                             {tags.map((tag, i) => (
@@ -394,7 +502,7 @@ export default function GradingInterface() {
 
                                                                 {/* Technical Summary */}
                                                                 {fb.technical_summary && (
-                                                                    <div className="p-3 bg-white rounded-lg border border-indigo-100/50 shadow-sm">
+                                                                    <div className="p-3 bg-white dark:bg-gray-800 rounded-lg border border-indigo-100/50 shadow-sm">
                                                                         <span className="text-[10px] text-gray-500 uppercase tracking-wider font-bold block mb-1">Technical Summary</span>
                                                                         <p className="text-xs text-gray-700 leading-relaxed whitespace-pre-line">
                                                                             {typeof fb.technical_summary === 'object' ? JSON.stringify(fb.technical_summary, null, 2) : fb.technical_summary}
@@ -414,7 +522,7 @@ export default function GradingInterface() {
 
                                                                 {/* Identified Concepts */}
                                                                 {fb.identified_concepts && (Array.isArray(fb.identified_concepts) ? fb.identified_concepts.length > 0 : true) && (
-                                                                    <div className="p-3 bg-white rounded-lg border border-indigo-100/50 shadow-sm">
+                                                                    <div className="p-3 bg-white dark:bg-gray-800 rounded-lg border border-indigo-100/50 shadow-sm">
                                                                         <span className="text-[10px] text-gray-500 uppercase tracking-wider font-bold block mb-1.5">Identified Concepts</span>
                                                                         {Array.isArray(fb.identified_concepts) && fb.identified_concepts.length > 0 ? (
                                                                             <div className="flex flex-wrap gap-1.5">
@@ -432,7 +540,7 @@ export default function GradingInterface() {
 
                                                                 {/* Summarized Construct */}
                                                                 {fb.summarized_construct && (
-                                                                    <div className="p-3 bg-white rounded-lg border border-indigo-100/50 shadow-sm">
+                                                                    <div className="p-3 bg-white dark:bg-gray-800 rounded-lg border border-indigo-100/50 shadow-sm">
                                                                         <span className="text-[10px] text-gray-500 uppercase tracking-wider font-bold block mb-1">Construct Used</span>
                                                                         <p className="text-xs text-gray-700 leading-relaxed">
                                                                             {typeof fb.summarized_construct === 'object' ? JSON.stringify(fb.summarized_construct, null, 2) : fb.summarized_construct}
@@ -442,7 +550,7 @@ export default function GradingInterface() {
 
                                                                 {/* Static Analysis */}
                                                                 {staticData && (
-                                                                    <div className="p-3 bg-gray-50 rounded-lg border border-gray-100 shadow-sm space-y-1.5">
+                                                                    <div className="p-3 bg-gray-50 dark:bg-gray-900 rounded-lg border border-gray-100 dark:border-gray-800 shadow-sm space-y-1.5">
                                                                         <span className="text-[10px] text-gray-500 uppercase tracking-wider font-bold block">Static Analysis</span>
                                                                         <div className="flex items-center gap-2">
                                                                             <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded ${staticData.syntax_valid ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
@@ -455,7 +563,7 @@ export default function GradingInterface() {
                                                                         {staticData.constructs_found?.length > 0 && (
                                                                             <div className="flex flex-wrap gap-1">
                                                                                 {staticData.constructs_found.map((c, i) => (
-                                                                                    <span key={i} className="text-[10px] text-gray-600 bg-gray-100 px-1.5 py-0.5 rounded">{c}</span>
+                                                                                    <span key={i} className="text-[10px] text-gray-600 bg-gray-100 dark:bg-gray-800 px-1.5 py-0.5 rounded">{c}</span>
                                                                                 ))}
                                                                             </div>
                                                                         )}
@@ -485,9 +593,9 @@ export default function GradingInterface() {
                                                             onChange={(e) => updateScore(e.target.value)}
                                                             className="text-lg font-bold w-24"
                                                             step="0.1"
-                                                            max={currentItem.max_points || 10}
+                                                            max={100}
                                                         />
-                                                        <span className="text-gray-500 font-medium">/ {currentItem.max_points || 10}</span>
+                                                        <span className="text-gray-500 font-medium">/ 100</span>
                                                     </div>
                                                 </div>
                                                 <div className="space-y-2">
@@ -503,26 +611,28 @@ export default function GradingInterface() {
                                         </TabsContent>
 
                                         <TabsContent value="history">
-                                            <div className="p-8 text-center text-gray-500 border border-dashed rounded bg-gray-50">
+                                            <div className="p-8 text-center text-gray-500 border border-dashed rounded bg-gray-50 dark:bg-gray-900">
                                                 No history available.
                                             </div>
                                         </TabsContent>
                                     </div>
                                 </Tabs>
                             </div>
+                                </>
+                            ) : (
+                                <div className="flex-1 flex flex-col items-center justify-center bg-gray-100 dark:bg-gray-800 text-gray-500">
+                                    <AlertCircle className="w-12 h-12 mb-4 opacity-50" />
+                                    <h2 className="text-xl font-semibold">Not Attempted</h2>
+                                    <p>The student has not submitted code for this question yet.</p>
+                                </div>
+                            )}
                         </>
-                    ) : (
-                        <div className="flex-1 flex flex-col items-center justify-center bg-gray-100 text-gray-500">
-                            <AlertCircle className="w-12 h-12 mb-4 opacity-50" />
-                            <h2 className="text-xl font-semibold">Not Attempted</h2>
-                            <p>The student has not submitted code for this question yet.</p>
-                        </div>
-                    )
                 ) : (
-                    <div className="flex-1 flex items-center justify-center bg-gray-50">
+                    <div className="flex-1 flex items-center justify-center bg-gray-50 dark:bg-gray-900">
                         <Loader2 className="animate-spin text-indigo-600" />
                     </div>
                 )}
+                </ErrorBoundary>
             </div>
         </div>
     );

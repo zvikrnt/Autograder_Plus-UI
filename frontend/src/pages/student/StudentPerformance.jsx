@@ -104,14 +104,14 @@ const LeaderboardSection = () => {
                     Leaderboard
                 </CardTitle>
                 {/* Tabs */}
-                <div className="flex gap-1 mt-3 border-b border-gray-100 pb-0">
+                <div className="flex gap-1 mt-3 border-b border-gray-100 dark:border-gray-800 pb-0">
                     {LEADERBOARD_TABS.map((tab) => (
                         <button
                             key={tab.id}
                             onClick={() => setActiveTab(tab.id)}
                             className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-t-lg border-b-2 transition-colors ${activeTab === tab.id
                                     ? 'border-indigo-500 text-indigo-600 bg-indigo-50'
-                                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50'
+                                    : 'border-transparent text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800'
                                 }`}
                         >
                             <span>{tab.icon}</span>
@@ -126,6 +126,10 @@ const LeaderboardSection = () => {
                     type={activeTab}
                     limit={10}
                     showUserRank={activeTab === 'global'}
+                    compact={true}
+                    scrollable={true}
+                    entriesMaxHeightClass="max-h-[320px]"
+                    className="border-0 shadow-none rounded-none"
                 />
             </CardContent>
         </Card>
@@ -137,7 +141,7 @@ const GradeTooltip = ({ active, payload }) => {
     if (!active || !payload?.length) return null;
     const d = payload[0].payload;
     return (
-        <div className="bg-white border border-gray-200 rounded-xl shadow-lg p-3 text-sm">
+        <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl shadow-lg p-3 text-sm">
             <p className="font-semibold text-gray-900">{d.label}</p>
             <p className="text-xs text-gray-500 mt-0.5">
                 <span className="inline-block px-1.5 py-0.5 rounded text-white text-xs font-medium mr-1"
@@ -548,7 +552,7 @@ export default function StudentPerformance() {
                                         {(() => {
                                             const maxScore = Math.max(classComparison.student_avg, classComparison.class_avg, 1);
                                             return (
-                                                <div className="h-3 bg-gray-100 rounded-full overflow-hidden">
+                                                <div className="h-3 bg-gray-100 dark:bg-gray-800 rounded-full overflow-hidden">
                                                     <div className="h-full bg-indigo-500 rounded-full transition-all duration-700"
                                                         style={{ width: `${(classComparison.student_avg / maxScore) * 100}%` }} />
                                                 </div>
@@ -563,7 +567,7 @@ export default function StudentPerformance() {
                                         {(() => {
                                             const maxScore = Math.max(classComparison.student_avg, classComparison.class_avg, 1);
                                             return (
-                                                <div className="h-3 bg-gray-100 rounded-full overflow-hidden">
+                                                <div className="h-3 bg-gray-100 dark:bg-gray-800 rounded-full overflow-hidden">
                                                     <div className="h-full bg-gray-400 rounded-full transition-all duration-700"
                                                         style={{ width: `${(classComparison.class_avg / maxScore) * 100}%` }} />
                                                 </div>

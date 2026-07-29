@@ -46,6 +46,8 @@ INSTALLED_APPS = [
     'analytics',
     'notifications',
     'gamification',
+    'adaptive',
+    'blackboard',
     'anymail',
     'storages',
 ]
@@ -126,7 +128,7 @@ CACHES = {
 AWS_ACCESS_KEY_ID = config('MINIO_ROOT_USER', default='minioadmin')
 AWS_SECRET_ACCESS_KEY = config('MINIO_ROOT_PASSWORD', default='minioadmin')
 AWS_STORAGE_BUCKET_NAME = config('MINIO_BUCKET_NAME', default='autograder-bucket')
-AWS_S3_ENDPOINT_URL = config('MINIO_ENDPOINT', default='http://localhost:9002')
+AWS_S3_ENDPOINT_URL = config('MINIO_ENDPOINT', default='http://localhost:9012')
 AWS_S3_USE_SSL = False
 AWS_QUERYSTRING_AUTH = False
 DEFAULT_FILE_STORAGE = 'storages.backends.s3boto3.S3Boto3Storage'
@@ -190,6 +192,9 @@ REST_FRAMEWORK = {
     ),
     'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
     'PAGE_SIZE': 20,
+    'DEFAULT_THROTTLE_RATES': {
+        'blackboard': '60/min',
+    },
     'DEFAULT_FILTER_BACKENDS': [
         'rest_framework.filters.SearchFilter',
         'rest_framework.filters.OrderingFilter',

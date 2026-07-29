@@ -42,7 +42,7 @@ export default function AllAssignments() {
         const diffTime = date - now;
         const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
 
-        if (diffDays < 0) return { text: `Ended ${Math.abs(diffDays)} days ago`, color: "text-gray-500 bg-gray-100 border-gray-200" };
+        if (diffDays < 0) return { text: `Ended ${Math.abs(diffDays)} days ago`, color: "text-gray-500 bg-gray-100 dark:bg-gray-800 border-gray-200 dark:border-gray-700" };
         if (diffDays === 0) return { text: "Due today", color: "text-amber-700 bg-amber-50 border-amber-200" };
         if (diffDays === 1) return { text: "Due tomorrow", color: "text-emerald-700 bg-emerald-50 border-emerald-200" };
         return { text: `Due in ${diffDays} days`, color: "text-indigo-700 bg-indigo-50 border-indigo-200" };
@@ -104,7 +104,12 @@ export default function AllAssignments() {
                         <h1 className="text-3xl font-bold tracking-tight text-gray-900">All Assignments</h1>
                         <p className="text-gray-500">Track and grade work across all your classes.</p>
                     </div>
-                    <Link to="/teacher/assignments/create">
+                    {/* Previuse code : <Link to="/teacher/assignments/create">
+                        <Button className="gap-2">
+                            Create Assignment
+                        </Button>
+                    </Link> */}
+                    <Link to="/teacher/assignment/create">
                         <Button className="gap-2">
                             Create Assignment
                         </Button>
@@ -112,7 +117,7 @@ export default function AllAssignments() {
                 </div>
 
                 {/* Custom Tabs */}
-                <div className="flex items-center space-x-1 rounded-xl bg-gray-100 p-1 w-fit">
+                <div className="flex items-center space-x-1 rounded-xl bg-gray-100 dark:bg-gray-800 p-1 w-fit">
                     {['active', 'draft', 'past'].map((tab) => (
                         <button
                             key={tab}
@@ -120,15 +125,15 @@ export default function AllAssignments() {
                             className={`
                                 flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-semibold transition-all duration-200
                                 ${activeTab === tab
-                                    ? "bg-white text-indigo-600 shadow-sm ring-1 ring-black/5"
-                                    : "text-gray-500 hover:text-gray-900 hover:bg-gray-200/50"
+                                    ? "bg-white dark:bg-gray-800 text-indigo-600 shadow-sm ring-1 ring-black/5"
+                                    : "text-gray-500 hover:text-gray-900 dark:hover:text-white hover:bg-gray-200/50 dark:hover:bg-gray-600"
                                 }
                             `}
                         >
                             <span className="capitalize">{tab}</span>
                             <span className={`
                                 px-1.5 py-0.5 rounded-md text-[10px] font-bold
-                                ${activeTab === tab ? "bg-indigo-50 text-indigo-700" : "bg-gray-200 text-gray-600"}
+                                ${activeTab === tab ? "bg-indigo-50 text-indigo-700" : "bg-gray-200 dark:bg-gray-700 text-gray-600"}
                             `}>
                                 {counts[tab] || 0}
                             </span>
@@ -145,7 +150,7 @@ export default function AllAssignments() {
                         return (
                             <div key={assignment.id} className="block group relative">
                                 <Link to={isDraft ? `/teacher/assignment/${assignment.id}?edit=true` : `/teacher/assignment/${assignment.id}`} className="block">
-                                    <Card className={`hover:shadow-md transition-shadow cursor-pointer border-l-4 ${isDraft ? "border-l-gray-300" : "border-l-transparent hover:border-l-indigo-500"}`}>
+                                    <Card className={`hover:shadow-md transition-shadow cursor-pointer border-l-4 ${isDraft ? "border-l-gray-300 dark:border-l-gray-600" : "border-l-transparent hover:border-l-indigo-500"}`}>
                                         <CardContent className="p-6">
                                             <div className="flex items-start justify-between">
                                                 <div className="space-y-1">
@@ -154,7 +159,7 @@ export default function AllAssignments() {
                                                             {assignment.title}
                                                         </h3>
                                                         {isDraft && (
-                                                            <Badge variant="outline" className="text-xs font-normal bg-gray-100 text-gray-600 border-gray-300">
+                                                            <Badge variant="outline" className="text-xs font-normal bg-gray-100 dark:bg-gray-800 text-gray-600 border-gray-300 dark:border-gray-600">
                                                                 Draft
                                                             </Badge>
                                                         )}
@@ -231,7 +236,7 @@ export default function AllAssignments() {
 
                     {filteredAssignments.length === 0 && (
                         <div className="text-center py-12">
-                            <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4 text-gray-400">
+                            <div className="w-16 h-16 bg-gray-100 dark:bg-gray-800 rounded-full flex items-center justify-center mx-auto mb-4 text-gray-400">
                                 <CheckCircle2 className="w-8 h-8" />
                             </div>
                             <h3 className="text-lg font-medium text-gray-900">All caught up!</h3>

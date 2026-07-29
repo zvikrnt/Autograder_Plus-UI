@@ -1,8 +1,0 @@
-title: Q27. Practice Question
-slug: csl100-q27
-entry_point: solution
-execution:
-  timeout_seconds: 2
-  memory_limit_mb: 128
-  language: python
-test_cases: []

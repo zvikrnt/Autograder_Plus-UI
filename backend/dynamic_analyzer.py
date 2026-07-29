@@ -42,6 +42,17 @@ class DynamicAnalyzer:
     # ----------------------------
     # Common helpers
     # ----------------------------
+    def _teardown(self, container):
+        """Idempotently stop/remove a container. Safe if it already auto-removed
+        (remove=True) — swallows docker.errors.NotFound and any teardown error."""
+        if not container:
+            return
+        try:
+            container.kill()
+        except Exception:
+            # Already stopped / auto-removed / not found — nothing to do.
+            pass
+
     def _create_tar_from_string(self, content_str: str, filename: str) -> io.BytesIO:
         tar_stream = io.BytesIO()
         with tarfile.open(fileobj=tar_stream, mode="w:") as tar:
@@ -86,14 +97,80 @@ class DynamicAnalyzer:
         return output
 
     def _compare_outputs(self, actual, expected) -> bool:
-        """Comparison tolerant to floats, otherwise strict-ish string compare."""
+        """Comparison tolerant to floats, dict key types, and unordered list-of-lists.
+
+        A raw string-equality fast path runs first so literal-string answers
+        (e.g. "007", "True", "1 2") are never lost to numeric/list coercion."""
+        # Fast path: exact string equality on the raw values (before any coercion).
+        if str(actual).strip() == str(expected).strip():
+            return True
+
         # numbers
         if isinstance(actual, (int, float)) and isinstance(expected, (int, float)):
             return math.isclose(float(actual), float(expected), rel_tol=1e-6, abs_tol=1e-6)
-        # strings
-        return str(actual).strip() == str(expected).strip()
 
-    def _exec_with_timeout(self, container, cmd: list[str]) -> tuple[int | None, str, str, int]:
+        # Normalize dicts: JSON forces string keys; Python may produce int/float keys.
+        # Recursively coerce both to a canonical form for comparison.
+        def _canon(obj):
+            if isinstance(obj, dict):
+                # Try to coerce string keys to int/float where possible
+                canon = {}
+                for k, v in obj.items():
+                    try:
+                        k = int(k)
+                    except (ValueError, TypeError):
+                        try:
+                            k = float(k)
+                        except (ValueError, TypeError):
+                            pass
+                    canon[k] = _canon(v)
+                return canon
+            if isinstance(obj, list):
+                return [_canon(x) for x in obj]
+            return obj
+
+        ca, ce = _canon(actual), _canon(expected)
+        if isinstance(ca, dict) and isinstance(ce, dict):
+            if set(ca.keys()) != set(ce.keys()):
+                return False
+            return all(self._compare_outputs(ca[k], ce[k]) for k in ca)
+
+        # Unordered list-of-lists (e.g. anagram groups): sort inner lists then outer
+        if isinstance(ca, list) and isinstance(ce, list) and len(ca) == len(ce):
+            # First try ordered match
+            if all(self._compare_outputs(a, b) for a, b in zip(ca, ce)):
+                return True
+            # Try sorting inner lists and outer list (for group_anagrams etc.)
+            try:
+                def _sort_key(x):
+                    if isinstance(x, list):
+                        return sorted(str(i) for i in x)
+                    return str(x)
+                sa = sorted(([sorted(str(i) for i in x)] if isinstance(x, list) else [str(x)]) for x in ca)
+                se = sorted(([sorted(str(i) for i in x)] if isinstance(x, list) else [str(x)]) for x in ce)
+                return sa == se
+            except Exception:
+                pass
+
+        # strings
+        return str(ca).strip() == str(ce).strip()
+
+    def _outputs_match(self, raw_actual, raw_expected) -> bool:
+        """Single comparison entry point used by every language path.
+
+        1. Exact raw-string equality (preserves literal answers like "007",
+           "True", "1 2" that coercion would otherwise mangle).
+        2. Fall back to type-tolerant comparison on normalized values.
+        """
+        if str(raw_actual).strip() == str(raw_expected).strip():
+            return True
+        return self._compare_outputs(
+            self._normalize_output(raw_actual),
+            self._normalize_output(raw_expected),
+        )
+
+
+    def _exec_with_timeout(self, container, cmd: list[str], timeout: float = EXECUTION_TIMEOUT_SECONDS) -> tuple[int | None, str, str, int]:
         exit_code_ref = [None]
         out_ref = [(b"", b"")]
         err_ref = [None]
@@ -112,7 +189,7 @@ class DynamicAnalyzer:
 
         t = threading.Thread(target=target, daemon=True)
         t.start()
-        t.join(EXECUTION_TIMEOUT_SECONDS)
+        t.join(timeout)
 
         if t.is_alive():
             # Force kill the container if it's still running
@@ -120,7 +197,7 @@ class DynamicAnalyzer:
                 container.kill()
             except Exception:
                 pass
-            return None, "", "Execution timed out.", EXECUTION_TIMEOUT_SECONDS * 1000
+            return None, "", "Execution timed out.", int(timeout * 1000)
 
         if err_ref[0]:
             return None, "", f"System exec error: {err_ref[0]}", 0
@@ -162,6 +239,7 @@ import contextlib
 import io
 import time
 import multiprocessing
+import queue
 import traceback
 import ast
 import inspect
@@ -269,13 +347,28 @@ def worker(test_case, result_queue):
                 raise AttributeError(f"Function '{{ENTRY_POINT}}' not found in module '{{MODULE_NAME}}'")
             func = getattr(mod, ENTRY_POINT)
             
-            # Get function signature to know expected arg count
+            # Get function signature to know expected arg count. Exclude 'self'
+            # (bound methods), and treat *args/**kwargs/defaulted params sanely:
+            # `expected_args` is the number of REQUIRED positional params.
             try:
                 sig = inspect.signature(func)
-                expected_args = len(sig.parameters)
-            except ValueError:
-                expected_args = 1 # Fallback
-            
+                required = 0
+                has_varargs = False
+                for name, p in sig.parameters.items():
+                    if name == 'self':
+                        continue
+                    if p.kind in (inspect.Parameter.VAR_POSITIONAL, inspect.Parameter.VAR_KEYWORD):
+                        has_varargs = True
+                        continue
+                    if p.default is inspect.Parameter.empty and p.kind in (
+                        inspect.Parameter.POSITIONAL_ONLY,
+                        inspect.Parameter.POSITIONAL_OR_KEYWORD,
+                    ):
+                        required += 1
+                expected_args = required if required > 0 else (1 if not has_varargs else 1)
+            except (ValueError, TypeError):
+                expected_args = 1  # Fallback
+
             # Prepare input
             inp_raw = test_case.get('input')
             args = []
@@ -377,15 +470,18 @@ def worker(test_case, result_queue):
                 
             # Execute
             ret = func(*args, **kwargs)
-            
+
             # --- Robust Output Capturing ---
-            if ret is None and args:
-                # Check Duck Typing for mutable structures
-                # Only fallback if NO stdout was captured (assume in-place modification)
-                if not out_buf.getvalue().strip():
-                    first_arg = args[0]
-                    ret = first_arg
-            
+            # In-place mutation heuristic: ONLY when the function returned None,
+            # produced NO stdout, an expected answer exists, AND the first arg is
+            # a mutable container (list/dict/set). This avoids corrupting void /
+            # print-only functions (which legitimately return None and print).
+            printed_so_far = out_buf.getvalue().strip()
+            expected_nonempty = str(test_case.get('expected_output', '')).strip() != ''
+            if (ret is None and args and not printed_so_far and expected_nonempty
+                    and isinstance(args[0], (list, dict, set))):
+                ret = args[0]
+
             # Print result if not printed
             if ret is not None:
                 # Auto-Serialize Data Structures
@@ -422,36 +518,58 @@ def main():
         return
 
     results = []
-    
+
     for i, test in enumerate(tests):
+        name = test.get('name', f'test_{{i+1}}')
         q = multiprocessing.Queue()
         # Create a process for isolation
         p = multiprocessing.Process(target=worker, args=(test, q))
         p.start()
-        p.join(timeout=TIMEOUT)
-        
+
+        # Drain the result queue with a timeout BEFORE join. Reading first avoids
+        # the classic mp.Queue deadlock where a child blocks flushing a large
+        # payload to the pipe and therefore never exits (so join() would hang /
+        # time out and we'd lose a valid result).
+        res = None
+        try:
+            res = q.get(timeout=TIMEOUT)
+        except queue.Empty:
+            res = None
+
+        # Now reap the process. If it's still running after we already have (or
+        # gave up waiting for) a result, WE terminate it → that's a timeout, not
+        # a crash. A process that exited on its own with no result is a crash.
+        p.join(timeout=1.0)
+        killed_by_us = False
         if p.is_alive():
+            killed_by_us = True
             p.terminate()
-            p.join()
+            p.join(timeout=1.0)
+            if p.is_alive():
+                p.kill()
+                p.join(timeout=1.0)
+
+        if res is not None:
+            res['name'] = name
+            results.append(res)
+        elif killed_by_us:
+            # Still running when we reaped it → exceeded the time budget.
             results.append({{
-                'name': test.get('name', f'test_{{i+1}}'),
+                'name': name,
                 'status': 'timeout',
                 'error': 'Execution timed out',
                 'actual': '',
                 'execution_time': int(TIMEOUT * 1000)
             }})
         else:
-            if not q.empty():
-                res = q.get()
-                res['name'] = test.get('name', f'test_{{i+1}}')
-                results.append(res)
-            else:
-                results.append({{
-                    'name': test.get('name', f'test_{{i+1}}'),
-                    'status': 'runtime_error',
-                    'error': 'Process crashed unexpectedly',
-                    'execution_time': 0
-                }})
+            # Exited on its own but produced no result (segfault / OOM / crash).
+            results.append({{
+                'name': name,
+                'status': 'runtime_error',
+                'error': f'Process crashed (exit code {{p.exitcode}})',
+                'actual': '',
+                'execution_time': 0
+            }})
 
     print(json.dumps(results))
 
@@ -504,11 +622,8 @@ if __name__ == "__main__":
                 
             runner_script = self._generate_batch_runner(module_name, entry_point, timeout, input_types=input_types)
             tests_json = json.dumps(test_cases)
-            
-            # 4. Copy runner files
-            tests_json = json.dumps(test_cases)
-            
-            # 3. Copy files
+
+            # Copy runner + tests into the container.
             container.put_archive(CONTAINER_TEMP_DIR, self._create_tar_from_string(runner_script, "batch_runner.py"))
             container.put_archive(CONTAINER_TEMP_DIR, self._create_tar_from_string(tests_json, "tests.json"))
 
@@ -519,15 +634,14 @@ if __name__ == "__main__":
             
             cmd = ["python3", f"{CONTAINER_TEMP_DIR}/batch_runner.py"]
             
-            # Using raw exec_run to handle the potentially long output
-            ec, output_b = container.exec_run(cmd, demux=False)
+            # Use _exec_with_timeout to prevent infinite hangs
+            ec, output_str, err_str, _ = self._exec_with_timeout(container, cmd, timeout=total_timeout_s)
             
-            output_str = output_b.decode("utf-8", errors="ignore").strip()
-            
+            if ec is None:
+                return [{"name": "all", "status": "timeout", "error": f"Batch runner hard timeout: {err_str}"}]
+
             # 5. Parse Results
             try:
-                # The runner prints JSON at the end
-                # We need to be careful if there's other stdout noise, though we capture stdout in the worker...
                 # The main logic uses print(json.dumps) only.
                 # But if system error, we might catch it here.
                 return json.loads(output_str)
@@ -537,11 +651,7 @@ if __name__ == "__main__":
         except Exception as e:
              return [{"name": "all", "status": "system_error", "error": f"Container error: {str(e)}"}]
         finally:
-            if container:
-                try:
-                    container.kill()
-                except Exception:
-                    pass
+            self._teardown(container)
 
 
     def _run_python_test_case(self, code_path: Path, mode_config: dict, input_str: str) -> tuple[int | None, str, str, int]:
@@ -580,14 +690,9 @@ if __name__ == "__main__":
             return self._exec_with_timeout(container, cmd)
 
         except Exception as e:
-            return None, "", f"Container runtime error: {str(e)}"
+            return None, "", f"Container runtime error: {str(e)}", 0
         finally:
-            if container:
-                try:
-                    container.kill()
-                    # Container will be auto-removed due to remove=True
-                except Exception:
-                    pass
+            self._teardown(container)
 
     def _generate_python_runner(self, module_name: str, mode: dict, input_path: str) -> str:
         """
@@ -750,11 +855,8 @@ sys.exit(1 if error_occurred else 0)
                     results.append({"name": name, "status": "runtime_error", "error": err or "Runtime error", "execution_time": duration})
                     continue
 
-                actual_norm = self._normalize_output(out)
-                expected_norm = self._normalize_output(expected_str)
-
-                if self._compare_outputs(actual_norm, expected_norm):
-                    results.append({"name": name, "status": "pass", "execution_time": duration})
+                if self._outputs_match(out, expected_str):
+                    results.append({"name": name, "status": "pass", "actual": out, "execution_time": duration})
                 else:
                     results.append(
                         {
@@ -772,12 +874,7 @@ sys.exit(1 if error_occurred else 0)
         except Exception as e:
             return [{"name": "error", "status": "error", "error": f"Container runtime error: {str(e)}"}]
         finally:
-            if container:
-                try:
-                    container.kill()
-                    # Container will be auto-removed due to remove=True
-                except Exception:
-                    pass
+            self._teardown(container)
 
     def _analyze_java_submission(self, submission: dict) -> list[dict]:
         config = submission["config"]
@@ -801,13 +898,18 @@ sys.exit(1 if error_occurred else 0)
 
             container_src = f"{CONTAINER_WORKING_DIR}/{code_path.name}"
 
-            # Compile once (MVP assumes Main.java / class Main)
+            # Determine the (public) class name so we compile/run the right class.
+            # Java requires a public class to live in <ClassName>.java, so hardcoding
+            # Main.java breaks submissions whose public class isn't Main.
+            class_name = self._detect_java_class(submission.get("code", ""), code_path)
+
+            # Compile once: copy the source to <Class>.java and javac it.
             build_cmd = [
                 "bash",
                 "-lc",
                 "set -e; mkdir -p /tmp/work; "
-                f"cp {container_src} /tmp/work/Main.java; "
-                "javac -encoding UTF-8 -d /tmp/work /tmp/work/Main.java",
+                f"cp {container_src} /tmp/work/{class_name}.java; "
+                f"javac -encoding UTF-8 -d /tmp/work /tmp/work/{class_name}.java",
             ]
             ec, so, se, _ = self._exec_with_timeout(container, build_cmd)
             if ec is None:
@@ -827,7 +929,7 @@ sys.exit(1 if error_occurred else 0)
                 container.put_archive(CONTAINER_TEMP_DIR, self._create_tar_from_string(input_str, INPUT_FILE_NAME))
                 input_target = f"{CONTAINER_TEMP_DIR}/{INPUT_FILE_NAME}"
 
-                run_cmd = ["bash", "-lc", f"java -cp /tmp/work Main < {input_target}"]
+                run_cmd = ["bash", "-lc", f"java -cp /tmp/work {class_name} < {input_target}"]
                 ec, out, err, duration = self._exec_with_timeout(container, run_cmd)
 
                 if ec is None:
@@ -837,11 +939,8 @@ sys.exit(1 if error_occurred else 0)
                     results.append({"name": name, "status": "runtime_error", "error": err or "Runtime error", "execution_time": duration})
                     continue
 
-                actual_norm = self._normalize_output(out)
-                expected_norm = self._normalize_output(expected_str)
-
-                if self._compare_outputs(actual_norm, expected_norm):
-                    results.append({"name": name, "status": "pass", "execution_time": duration})
+                if self._outputs_match(out, expected_str):
+                    results.append({"name": name, "status": "pass", "actual": out, "execution_time": duration})
                 else:
                     results.append(
                         {
@@ -859,12 +958,25 @@ sys.exit(1 if error_occurred else 0)
         except Exception as e:
             return [{"name": "error", "status": "error", "error": f"Container runtime error: {str(e)}"}]
         finally:
-            if container:
-                try:
-                    container.kill()
-                    # Container will be auto-removed due to remove=True
-                except Exception:
-                    pass
+            self._teardown(container)
+
+    @staticmethod
+    def _detect_java_class(code: str, code_path: Path) -> str:
+        """Best-effort detection of the runnable Java class name.
+
+        Prefer the `public class X`; else the first `class X`; else the file
+        stem. This lets submissions whose public class isn't `Main` compile and
+        run (Java requires the public class file to be named after the class)."""
+        import re
+        code = code or ""
+        m = re.search(r'\bpublic\s+(?:final\s+|abstract\s+)?class\s+([A-Za-z_$][\w$]*)', code)
+        if m:
+            return m.group(1)
+        m = re.search(r'\bclass\s+([A-Za-z_$][\w$]*)', code)
+        if m:
+            return m.group(1)
+        stem = code_path.stem
+        return stem if stem else "Main"
 
     # ----------------------------
     # Main entry
@@ -894,7 +1006,11 @@ sys.exit(1 if error_occurred else 0)
 
         # --- Python path ---
         code_path = Path(submission["code_path"])
-        entry_point = config.get("entry_point")
+        # Resolve the function entry point. Real configs nest it under
+        # execution_mode.entry_point; older/top-level configs may put it at the
+        # top. Honor both (execution_mode takes precedence) so function-mode
+        # questions actually reach the batch runner.
+        entry_point = mode_config.get("entry_point") or config.get("entry_point")
         results: list[dict] = []
 
         if entry_point:
@@ -926,11 +1042,8 @@ sys.exit(1 if error_occurred else 0)
                      if res['status'] == 'run_success':
                          actual = res.get('actual', '')
                          expected = str(tc.get('expected_output', '')).strip()
-                         
-                         actual_norm = self._normalize_output(actual)
-                         expected_norm = self._normalize_output(expected)
-                         
-                         if self._compare_outputs(actual_norm, expected_norm):
+
+                         if self._outputs_match(actual, expected):
                              res['status'] = 'pass'
                          else:
                              res['status'] = 'fail'
@@ -968,11 +1081,8 @@ sys.exit(1 if error_occurred else 0)
                     results.append({"name": name, "status": "runtime_error", "error": err or "Runtime error", "execution_time": duration})
                     continue
 
-                actual_norm = self._normalize_output(out)
-                expected_norm = self._normalize_output(expected_str)
-
-                if self._compare_outputs(actual_norm, expected_norm):
-                    results.append({"name": name, "status": "pass", "execution_time": duration})
+                if self._outputs_match(out, expected_str):
+                    results.append({"name": name, "status": "pass", "actual": out, "execution_time": duration})
                 else:
                     results.append(
                         {

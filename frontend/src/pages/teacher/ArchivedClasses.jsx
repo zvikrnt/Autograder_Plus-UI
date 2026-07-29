@@ -123,7 +123,7 @@ export default function ArchivedClasses() {
                     <Button variant="outline" onClick={fetchArchivedClasses} className="mt-4">Retry</Button>
                 </div>
             ) : classes.length === 0 ? (
-                <div className="text-center py-20 bg-gray-50/50 border-2 border-dashed border-gray-200 rounded-xl">
+                <div className="text-center py-20 bg-gray-50/50 dark:bg-gray-900 border-2 border-dashed border-gray-200 dark:border-gray-700 rounded-xl">
                     <ArchiveRestore className="w-12 h-12 text-gray-300 mx-auto mb-4" />
                     <h3 className="text-xl font-semibold text-gray-700">No archived classes</h3>
                     <p className="text-gray-500 mt-2">Classes you archive will appear here.</p>

@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useCallback, useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import {
     Save,
@@ -10,7 +10,7 @@ import {
     AlertTriangle,
     CheckCircle2,
     Settings,
-    LayoutDashboard
+    MoveLeft
 } from "lucide-react";
 
 import TeacherLayout from "../../components/layout/TeacherLayout";
@@ -24,12 +24,10 @@ import { Alert, AlertDescription, AlertTitle } from "../../components/ui/alert";
 import { Badge } from "../../components/ui/badge";
 
 import { classService } from "../../services/classService";
-import { useAuth } from "../../contexts/AuthContext";
 
 export default function ClassSettings() {
     const { classId } = useParams();
     const navigate = useNavigate();
-    const { user } = useAuth();
 
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
@@ -48,18 +46,18 @@ export default function ClassSettings() {
         theme: 'default'
     });
 
-    useEffect(() => {
-        loadClassData();
-    }, [classId]);
-
-    const loadClassData = async () => {
+    const loadClassData = useCallback(async () => {
         try {
             setLoading(true);
             const res = await classService.getClass(classId);
+            if (!res.success || !res.data) {
+                throw new Error(res.message || "Failed to load class settings.");
+            }
+
             const data = res.data;
             setClassData(data);
-            setName(data.name);
-            setSection(data.section);
+            setName(data.name || "");
+            setSection(data.section || "");
 
             // Merge existing settings with defaults
             const savedSettings = data.settings || {};
@@ -70,18 +68,32 @@ export default function ClassSettings() {
         } finally {
             setLoading(false);
         }
-    };
+    }, [classId]);
+
+    useEffect(() => {
+        loadClassData();
+    }, [loadClassData]);
 
     const handleSaveGeneral = async () => {
         setSaving(true);
         setSuccessMessage("");
         setError(null);
         try {
-            await classService.updateClass(classId, {
+            const res = await classService.updateClass(classId, {
                 name,
                 section,
                 settings // Save current settings along with name/section
             });
+            if (!res.success) {
+                throw new Error(res.message || "Failed to save changes.");
+            }
+
+            if (res.data) {
+                setClassData(res.data);
+                setName(res.data.name || "");
+                setSection(res.data.section || "");
+                setSettings(prev => ({ ...prev, ...(res.data.settings || {}) }));
+            }
             setSuccessMessage("General settings saved successfully.");
             setTimeout(() => setSuccessMessage(""), 3000);
         } catch (err) {
@@ -102,11 +114,14 @@ export default function ClassSettings() {
             // We need to send name/section too because updateClass expects/allows them
             // or we might lose them if backend does full replace (usually PATCH is partial, PUT is full)
             // Assuming PUT based on service: `api.put`
-            await classService.updateClass(classId, {
+            const res = await classService.updateClass(classId, {
                 name,
                 section,
                 settings: newSettings
             });
+            if (!res.success) {
+                throw new Error(res.message || `Failed to update ${key}.`);
+            }
         } catch (err) {
             console.error("Toggle save failed:", err);
             // Revert on failure
@@ -120,6 +135,9 @@ export default function ClassSettings() {
 
         try {
             const res = await classService.regenerateJoinCode(classId);
+            if (!res.success || !res.data?.join_code) {
+                throw new Error(res.message || "Failed to regenerate code.");
+            }
             setClassData(prev => ({ ...prev, join_code: res.data.join_code }));
             setSuccessMessage("Join code regenerated.");
             setTimeout(() => setSuccessMessage(""), 3000);
@@ -133,9 +151,12 @@ export default function ClassSettings() {
         if (!confirm("Are you sure you want to archive this class? It will be moved to the Archived tab.")) return;
 
         try {
-            await classService.archiveClass(classId);
+            const res = await classService.archiveClass(classId);
+            if (!res.success) {
+                throw new Error(res.message || "Failed to archive class.");
+            }
             navigate("/teacher/dashboard");
-        } catch (err) {
+        } catch {
             setError("Failed to archive class.");
         }
     };
@@ -148,9 +169,12 @@ export default function ClassSettings() {
         }
 
         try {
-            await classService.deleteClass(classId);
+            const res = await classService.deleteClass(classId);
+            if (!res.success) {
+                throw new Error(res.message || "Failed to delete class.");
+            }
             navigate("/teacher/dashboard");
-        } catch (err) {
+        } catch {
             setError("Failed to delete class.");
         }
     };
@@ -170,8 +194,8 @@ export default function ClassSettings() {
                         <p className="text-gray-500">Manage {classData?.name} ({classData?.section})</p>
                     </div>
                     <Button variant="outline" onClick={() => navigate(`/teacher/class/${classId}`)} className="gap-2">
-                        <LayoutDashboard className="w-4 h-4" />
-                        Back to Dashboard
+                        <MoveLeft className="w-4 h-4" />
+                        Back to Classroom
                     </Button>
                 </div>
 
@@ -232,13 +256,13 @@ export default function ClassSettings() {
                         <CardDescription>Control how students join your class.</CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-6">
-                        <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg border">
+                        <div className="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-900 rounded-lg border">
                             <div>
                                 <h3 className="font-medium">Join Code</h3>
                                 <p className="text-sm text-gray-500">Share this code with students to let them enroll.</p>
                             </div>
                             <div className="flex items-center gap-3">
-                                <Badge variant="outline" className="text-xl px-4 py-2 font-mono tracking-wider bg-white">
+                                <Badge variant="outline" className="text-xl px-4 py-2 font-mono tracking-wider bg-white dark:bg-gray-800">
                                     {classData?.join_code}
                                 </Badge>
                                 <Button size="sm" variant="ghost" title="Regenerate Code" onClick={handleRegenerateCode}>

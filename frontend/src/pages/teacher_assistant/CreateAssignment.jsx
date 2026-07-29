@@ -14,6 +14,7 @@ import QuestionEditorDialog from "../../components/features/teacher/QuestionEdit
 
 import { assignmentService } from "../../services/assignmentService";
 import { classService } from "../../services/classService";
+import { tokenManager } from "../../utils/tokenManager";
 
 import { useSearchParams } from "react-router-dom";
 
@@ -55,7 +56,8 @@ export default function CreateAssignment() {
         const timer = setTimeout(() => {
             if (title || instructions || questions.length > 0) {
                 const draft = { title, instructions, selectedClassId, difficulty, points, dueDate, questions };
-                localStorage.setItem("assignment_draft", JSON.stringify(draft));
+                const draftKey = `assignment_draft_${tokenManager.getUserFromToken()?.userId || 'guest'}`;
+                localStorage.setItem(draftKey, JSON.stringify(draft));
                 setSaveStatus("Saved to draft");
             }
         }, 1000);
@@ -131,11 +133,13 @@ export default function CreateAssignment() {
                     setQuestions(existingQuestions);
 
                     if (data.length > 0) setSelectedClassId(data[0].id.toString());
-                    localStorage.removeItem("assignment_draft");
+                    const draftKey = `assignment_draft_${tokenManager.getUserFromToken()?.userId || 'guest'}`;
+                    localStorage.removeItem(draftKey);
                 }
                 // Priority 3: Restore Draft
                 else {
-                    const saved = localStorage.getItem("assignment_draft");
+                    const draftKey = `assignment_draft_${tokenManager.getUserFromToken()?.userId || 'guest'}`;
+                    const saved = localStorage.getItem(draftKey);
                     if (saved) {
                         const parsed = JSON.parse(saved);
                         setTitle(parsed.title || "");
@@ -234,7 +238,8 @@ export default function CreateAssignment() {
             }
 
             // Clear draft after successful save
-            localStorage.removeItem("assignment_draft");
+            const draftKey = `assignment_draft_${tokenManager.getUserFromToken()?.userId || 'guest'}`;
+            localStorage.removeItem(draftKey);
 
             navigate(`/teacher/class/${selectedClassId}`);
         } catch (err) {
@@ -421,7 +426,7 @@ export default function CreateAssignment() {
                         </div>
 
                         {questions.length === 0 ? (
-                            <div className="text-center py-12 bg-gray-50 rounded-lg border-2 border-dashed border-gray-300 hover:border-indigo-300 transition-colors">
+                            <div className="text-center py-12 bg-gray-50 dark:bg-gray-900 rounded-lg border-2 border-dashed border-gray-300 dark:border-gray-600 hover:border-indigo-300 transition-colors">
                                 <p className="text-gray-500 mb-2">No questions added yet.</p>
                                 <Button variant="link" onClick={handleAddQuestion} className="text-indigo-600">
                                     Add your first question
@@ -431,7 +436,7 @@ export default function CreateAssignment() {
                             <Reorder.Group axis="y" values={questions} onReorder={setQuestions} className="space-y-3">
                                 {questions.map((q) => (
                                     <Reorder.Item key={q.id} value={q}>
-                                        <div className="bg-white border rounded-lg p-4 flex items-center gap-4 shadow-sm hover:shadow-md transition-shadow cursor-move group">
+                                        <div className="bg-white dark:bg-gray-800 border rounded-lg p-4 flex items-center gap-4 shadow-sm hover:shadow-md transition-shadow cursor-move group">
                                             <GripVertical className="w-5 h-5 text-gray-400 group-hover:text-gray-600" />
                                             <div className="flex-1">
                                                 <h3 className="font-medium text-gray-900">{q.title}</h3>

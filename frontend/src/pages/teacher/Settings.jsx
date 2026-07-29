@@ -7,8 +7,11 @@ import { Switch } from "../../components/ui/switch";
 import { Label } from "../../components/ui/label";
 import { Separator } from "../../components/ui/separator"; // We might need to create this or use hr
 import TeacherLayout from "../../components/layout/TeacherLayout";
+import { useAuth } from "../../contexts/AuthContext";
+import UserProfile from "../../components/auth/UserProfile";
 
 export default function Settings() {
+    const { user } = useAuth();
     const [emailNotifications, setEmailNotifications] = useState(true);
 
     // Detailed notification states
@@ -35,6 +38,7 @@ export default function Settings() {
                         <CardTitle>Profile</CardTitle>
                     </CardHeader>
                     <CardContent className="space-y-6">
+                        {/* PREVIOUS STATIC CODE (Commented out):
                         <div className="flex items-center gap-6">
                             <Avatar className="h-20 w-20">
                                 <AvatarImage src="https://github.com/shadcn.png" alt="@shadcn" />
@@ -60,6 +64,10 @@ export default function Settings() {
                                 <p className="text-sm text-gray-500">To change your name, go to your account settings.</p>
                             </div>
                         </div>
+                        */}
+
+                        {/* NEW DYNAMIC PROFILE COMPONENT (FIX): Allows editing first name, last name, and email */}
+                        <UserProfile isReadOnly={false} />
                     </CardContent>
                 </Card>
 
@@ -86,7 +94,7 @@ export default function Settings() {
                             />
                         </div>
 
-                        <Separator className="border-t border-gray-100" />
+                        <Separator className="border-t border-gray-100 dark:border-gray-800" />
 
                         {/* Comments */}
                         {emailNotifications && (
@@ -111,7 +119,7 @@ export default function Settings() {
                                     </div>
                                 </div>
 
-                                <Separator className="border-t border-gray-100" />
+                                <Separator className="border-t border-gray-100 dark:border-gray-800" />
 
                                 {/* Classes you teach */}
                                 <div className="space-y-4">
@@ -138,7 +146,7 @@ export default function Settings() {
                                     </div>
                                 </div>
 
-                                <Separator className="border-t border-gray-100" />
+                                <Separator className="border-t border-gray-100 dark:border-gray-800" />
 
                                 {/* Class Notifications Dropdown */}
                                 <div className="space-y-4">

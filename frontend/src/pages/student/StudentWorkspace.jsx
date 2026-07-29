@@ -16,17 +16,20 @@ import {
     GripVertical,
     Loader2,
     Clock,
-    ArrowRight
+    ArrowRight,
+    Save,
+    SkipForward,
+    CheckCheck
 } from "lucide-react";
 import { Button } from "../../components/ui/button";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "../../components/ui/tabs";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion as Motion, AnimatePresence } from "framer-motion";
 
 // --- MONACO EDITOR ---
 import MonacoEditor from '@monaco-editor/react';
 import { Separator } from "../../components/ui/separator";
 import ReactMarkdown from 'react-markdown';
-// import { Panel, Group } from "react-resizable-panels"; // Pro feature disabled for now
+import { Panel, Group as PanelGroup, Separator as PanelResizeHandle } from "react-resizable-panels";
 
 // Services
 import { assignmentService } from "../../services/assignmentService";
@@ -34,6 +37,7 @@ import { submissionService } from "../../services/submissionService";
 import QuestionPalette from "../../components/workspace/QuestionPalette";
 import McqWorkspaceRenderer from "../../components/workspace/McqWorkspaceRenderer";
 import { getWorkspaceStarterCode } from "../../utils/workspaceBoilerplate";
+import { tokenManager } from "../../utils/tokenManager";
 
 const StudentWorkspace = () => {
     const { assignmentId } = useParams();
@@ -50,18 +54,16 @@ const StudentWorkspace = () => {
 
     const [code, setCode] = useState("");
     const [selectedLanguage, setSelectedLanguage] = useState("python"); // Add language state
-    const [activeTab, setActiveTab] = useState("description");
-    const [selectedTestCase, setSelectedTestCase] = useState(0);
     const [output, setOutput] = useState(null);
     const [isRunning, setIsRunning] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [showConfetti, setShowConfetti] = useState(false);
     const [showExitWarning, setShowExitWarning] = useState(false);
-    const [isCompleted, setIsCompleted] = useState(false); // Track completion status
+    const [, setIsCompleted] = useState(false); // Track completion status
     const [isReadOnly, setIsReadOnly] = useState(false); // Locked mode after finish
 
     // --- Anti-Cheat State ---
-    const [warnings, setWarnings] = useState(0);
+    const [, setWarnings] = useState(0);
     const [isFullscreen, setIsFullscreen] = useState(!!document.fullscreenElement);
     const [warningModal, setWarningModal] = useState(null); // { message, isFinal }
     const MAX_WARNINGS = 3;
@@ -72,12 +74,13 @@ const StudentWorkspace = () => {
     // Timer state
     const [timeSpent, setTimeSpent] = useState(0); // in seconds (for backend tracking)
     const [timeRemaining, setTimeRemaining] = useState(0); // countdown timer in seconds
-    const [totalTimeAllowed, setTotalTimeAllowed] = useState(0); // total time for this difficulty
+    const [, setTotalTimeAllowed] = useState(0); // total time for this difficulty
     const [isTimerRunning, setIsTimerRunning] = useState(false);
     const [showHint, setShowHint] = useState(false);
     const timerIntervalRef = useRef(null);
     const lastUpdateRef = useRef(Date.now());
-    const isClipboardRestricted = !isReadOnly;
+    const isExamOrQuiz = assignment?.mode === 'exam' || assignment?.type === 'quiz';
+    const isClipboardRestricted = !isReadOnly && isExamOrQuiz;
 
     // Language configuration - Limited to 3 languages supported by dynamic analyzer
     const languageConfig = {
@@ -110,7 +113,7 @@ const StudentWorkspace = () => {
 
     const handleMonacoMount = (editor, monaco) => {
         monacoEditorRef.current = editor;
-        if (!isReadOnly) {
+        if (!isReadOnly && isExamOrQuiz) {
             // Disable copy and paste commands for active assignments/tests.
             editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyC, () => { });
             editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyV, () => { });
@@ -157,7 +160,9 @@ const StudentWorkspace = () => {
     const SUBMIT_SAVE_RETRY_DELAY_MS = 1200;
 
     const getDraftStorageKey = (aqId, language = selectedLanguage) => {
-        return `student-workspace-draft:${assignmentId}:${aqId}:${language}`;
+        const user = tokenManager.getUserFromToken();
+        const userId = user?.userId || 'guest';
+        return `student-workspace-draft:${userId}:${assignmentId}:${aqId}:${language}`;
     };
 
     const getDraftFromStorage = (aqId, language = selectedLanguage) => {
@@ -190,7 +195,9 @@ const StudentWorkspace = () => {
 
     const clearAssignmentDraftsFromStorage = () => {
         try {
-            const prefix = `student-workspace-draft:${assignmentId}:`;
+            const user = tokenManager.getUserFromToken();
+            const userId = user?.userId || 'guest';
+            const prefix = `student-workspace-draft:${userId}:${assignmentId}:`;
             const keysToDelete = [];
             for (let i = 0; i < window.localStorage.length; i++) {
                 const key = window.localStorage.key(i);
@@ -284,7 +291,10 @@ const StudentWorkspace = () => {
     // Load Question Data when Index Changes
     useEffect(() => {
         const loadQuestionData = async () => {
-            if (!assignment || !assignment.questions || !assignment.questions[currentQuestionIndex]) return;
+            if (!assignment || !assignment.questions || !assignment.questions[currentQuestionIndex]) {
+                setLoading(false); // Safety: clear loading even on early return
+                return;
+            }
 
             const aq = assignment.questions[currentQuestionIndex];
             const question = aq.question;
@@ -293,20 +303,31 @@ const StudentWorkspace = () => {
             setLoading(false); // Assignment is loaded, just switching questions
 
             // 1. Calculate Time Limit
-            const timeLimit = getTimeLimit(question.difficulty); // Per question limit?
+            const isTimedExam = isExamOrQuiz && assignment.duration_minutes;
+            const timeLimit = isTimedExam
+                ? assignment.duration_minutes * 60
+                : getTimeLimit(question.difficulty);
             setTotalTimeAllowed(timeLimit);
+
+            const setTimerFromResponse = (timerData) => {
+                if (isTimedExam && timerData.total_time_allowed) {
+                    setTimeSpent(timerData.time_spent || 0);
+                    setTimeRemaining(Math.max(0, timerData.total_time_allowed - (timerData.time_spent || 0)));
+                } else {
+                    setTimeSpent(timerData.time_spent || 0);
+                    setTimeRemaining(Math.max(0, timeLimit - (timerData.time_spent || 0)));
+                }
+            };
 
             // 2. Load Code: Local storage draft -> in-memory draft -> backend
             const localDraft = !isReadOnly ? getDraftFromStorage(aqId, selectedLanguage) : null;
             const hasUsableLocalDraft = localDraft !== null && localDraft !== "";
             if (hasUsableLocalDraft) {
                 setCode(localDraft);
-                // Still fetch timer to get time_spent but ignore code
                 try {
                     const timerResponse = await submissionService.getTimer(assignmentId, aqId, selectedLanguage);
                     if (timerResponse.success && timerResponse.data) {
-                        setTimeSpent(timerResponse.data.time_spent || 0);
-                        setTimeRemaining(Math.max(0, timeLimit - (timerResponse.data.time_spent || 0)));
+                        setTimerFromResponse(timerResponse.data);
                     }
                 } catch (e) { console.error("Timer fetch failed", e); }
                 return;
@@ -318,8 +339,7 @@ const StudentWorkspace = () => {
                 try {
                     const timerResponse = await submissionService.getTimer(assignmentId, aqId, selectedLanguage);
                     if (timerResponse.success && timerResponse.data) {
-                        setTimeSpent(timerResponse.data.time_spent || 0);
-                        setTimeRemaining(Math.max(0, timeLimit - (timerResponse.data.time_spent || 0)));
+                        setTimerFromResponse(timerResponse.data);
                     }
                 } catch (e) { console.error("Timer fetch failed", e); }
                 return;
@@ -329,9 +349,7 @@ const StudentWorkspace = () => {
             try {
                 const timerResponse = await submissionService.getTimer(assignmentId, aqId, selectedLanguage);
                 if (timerResponse.success && timerResponse.data) {
-                    const spentTime = timerResponse.data.time_spent || 0;
-                    setTimeSpent(spentTime);
-                    setTimeRemaining(Math.max(0, timeLimit - spentTime));
+                    setTimerFromResponse(timerResponse.data);
 
                     // Load saved code
                     if (timerResponse.data.code_content) {
@@ -358,13 +376,26 @@ const StudentWorkspace = () => {
         }
     }, [currentQuestionIndex, assignment]);
 
-    // Restart timer when question changes (per-question timer)
+    // Restart timer when question changes (per-question timer, unless exam/quiz with duration)
     useEffect(() => {
         if (assignment && assignment.questions && assignment.questions.length > 0 && !isReadOnly && timeRemaining > 0 && !isTimerRunning) {
-            // Restart timer for the new question if it hasn't reached time limit and isn't already running
-            setIsTimerRunning(true);
+            const isTimedExam = isExamOrQuiz && assignment.duration_minutes;
+            if (!isTimedExam) {
+                // Only restart per-question timer for regular assignments
+                setIsTimerRunning(true);
+            }
         }
-    }, [currentQuestionIndex, assignment, isReadOnly, timeRemaining]);
+    }, [currentQuestionIndex, assignment, isReadOnly, timeRemaining, isExamOrQuiz]);
+
+    // Start/continue exam timer when exam data is ready (continuous timer)
+    useEffect(() => {
+        if (assignment && assignment.questions && assignment.questions.length > 0 && !isReadOnly && timeRemaining > 0 && !isTimerRunning) {
+            const isTimedExam = isExamOrQuiz && assignment.duration_minutes;
+            if (isTimedExam) {
+                setIsTimerRunning(true);
+            }
+        }
+    }, [assignment, isReadOnly, timeRemaining, isExamOrQuiz]);
 
     // Initial Assignment Fetch & Status Check
     useEffect(() => {
@@ -379,6 +410,12 @@ const StudentWorkspace = () => {
                     submissionService.getAssignmentStatus(assignmentId),
                     submissionService.getAssignmentProgressWithPoints(assignmentId)
                 ]);
+
+                if (!assignmentRes.success) {
+                    setError(assignmentRes.message || "Assignment not found.");
+                    setLoading(false);
+                    return;
+                }
 
                 setAssignment(assignmentRes.data);
 
@@ -418,11 +455,17 @@ const StudentWorkspace = () => {
                     setIsCompleted(true); // Re-use completion banner or specific one
                 }
 
-                // If no questions, stop loading here
+                // Always clear loading after a successful fetch — loadQuestionData
+                // picks up from here via the second useEffect and will not block UI.
                 if (!assignmentRes.data || !assignmentRes.data.questions || assignmentRes.data.questions.length === 0) {
                     setLoading(false);
+                } else {
+                    // Questions exist — loadQuestionData (triggered by assignment state change)
+                    // will call setLoading(false). Add a 3-second safety timeout so loading
+                    // never stays stuck if loadQuestionData fails silently.
+                    setTimeout(() => setLoading(false), 3000);
                 }
-            } catch (err) {
+            } catch {
                 setError("Could not load assignment.");
                 setLoading(false);
             }
@@ -899,7 +942,7 @@ const StudentWorkspace = () => {
 
     if (loading) {
         return (
-            <div className="flex h-screen items-center justify-center bg-gray-50">
+            <div className="flex h-screen items-center justify-center bg-gray-50 dark:bg-gray-900">
                 <div className="text-center">
                     <Loader2 className="w-10 h-10 animate-spin text-indigo-600 mx-auto mb-4" />
                     <p className="text-gray-500 font-medium">Loading workspace...</p>
@@ -910,7 +953,7 @@ const StudentWorkspace = () => {
 
     if (error || !assignment) {
         return (
-            <div className="flex h-screen items-center justify-center bg-gray-50">
+            <div className="flex h-screen items-center justify-center bg-gray-50 dark:bg-gray-900">
                 <div className="text-center">
                     <XCircle className="w-12 h-12 text-red-500 mx-auto mb-4" />
                     <h2 className="text-xl font-bold text-gray-900 mb-2">Error Loading Assignment</h2>
@@ -1175,26 +1218,81 @@ const StudentWorkspace = () => {
         }
     };
 
+    const handleSaveAndNext = async () => {
+        saveToDrafts(currentQuestionIndex, code);
+        if (currentQuestionIndex < totalQuestions - 1) {
+            await switchToQuestion(currentQuestionIndex + 1);
+        }
+    };
+
+    const handleSkipAndNext = async () => {
+        saveToDrafts(currentQuestionIndex, code);
+        if (currentQuestionIndex < totalQuestions - 1) {
+            await switchToQuestion(currentQuestionIndex + 1);
+        }
+    };
+
+    const handleSubmitAndEnd = async () => {
+        saveToDrafts(currentQuestionIndex, code);
+        setIsSubmitting(true);
+        try {
+            await updateTimerOnBackend();
+
+            if (currentAQ) {
+                const payload = buildQuestionSubmissionPayload({
+                    aq: currentAQ,
+                    question: currentQuestion,
+                    answerValue: code,
+                    spentTime: timeSpent
+                });
+                const submissionResult = await submitCodeWithRetry(payload);
+                if (!submissionResult.ok) {
+                    const errorMessage = getApiErrorMessage(submissionResult.response);
+                    alert(
+                        `Submission failed to save after automatic retry. ${errorMessage}\n` +
+                        "Your code is kept locally. The test will still end."
+                    );
+                }
+            }
+
+            const finishResponse = await submissionService.finishAssignment(assignment.id);
+            if (!finishResponse.success) {
+                throw new Error(getApiErrorMessage(finishResponse));
+            }
+            clearAssignmentDraftsFromStorage();
+            setShowConfetti(true);
+            setTimeout(() => {
+                setShowConfetti(false);
+                navigate('/student/dashboard');
+            }, 3000);
+        } catch (error) {
+            console.error("Failed to submit and finish:", error);
+            alert("Error: " + error.message);
+        } finally {
+            setIsSubmitting(false);
+        }
+    };
+
     const handleClipboardRestriction = (e) => {
-        if (isClipboardRestricted) {
+        if (isClipboardRestricted || isReadOnly) {
             e.preventDefault();
         }
     };
 
     return (
-        <div ref={workspaceRootRef} className="flex flex-col h-screen bg-gray-50 text-gray-900 font-sans overflow-hidden">
+        <div ref={workspaceRootRef} className="flex flex-col h-screen bg-gray-50 dark:bg-gray-900 text-gray-900 font-sans overflow-hidden">
 
             {/* Anti-Cheat Fullscreen Blocking Overlay */}
             {!isReadOnly && !loading && !error && assignment && assignment.mode === 'exam' && !isFullscreen && (
                 <div className="fixed inset-0 z-50 bg-gray-900/90 backdrop-blur-sm flex flex-col items-center justify-center p-6 text-center">
-                    <div className="bg-white rounded-xl shadow-2xl p-8 max-w-md w-full border-t-4 border-indigo-600">
+                    <div className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl p-8 max-w-md w-full border-t-4 border-indigo-600">
                         <div className="w-16 h-16 bg-indigo-100 rounded-full flex items-center justify-center mx-auto mb-4">
                             <Settings className="w-8 h-8 text-indigo-600 animate-spin-slow" />
                         </div>
                         <h2 className="text-2xl font-bold text-gray-900 mb-2">Strict Mode Active</h2>
                         <div className="text-gray-600 text-sm mb-6 space-y-2">
                             <p>This assignment runs in a restricted environment.</p>
-                            <ul className="text-left bg-gray-50 p-3 rounded-lg border border-gray-100 space-y-1 text-xs">
+                            <ul className="text-left bg-gray-50 dark:bg-gray-900 p-3 rounded-lg border border-gray-100 dark:border-gray-800 space-y-1 text-xs">
                                 <li>• You must remain in Fullscreen mode.</li>
                                 <li>• Switching tabs or windows is recorded.</li>
                                 <li>• 3 warnings will result in auto-submission.</li>
@@ -1214,7 +1312,7 @@ const StudentWorkspace = () => {
             {/* Anti-Cheat Warning Modal — replaces alert() to avoid focus-loss cascade */}
             {warningModal && (
                 <div className="fixed inset-0 z-[60] bg-black/70 flex items-center justify-center p-4">
-                    <div className={`bg-white rounded-xl shadow-2xl p-6 max-w-sm w-full border-t-4 ${warningModal.isFinal ? 'border-red-600' : 'border-amber-500'}`}>
+                    <div className={`bg-white dark:bg-gray-800 rounded-xl shadow-2xl p-6 max-w-sm w-full border-t-4 ${warningModal.isFinal ? 'border-red-600' : 'border-amber-500'}`}>
                         <div className={`w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-4 ${warningModal.isFinal ? 'bg-red-100' : 'bg-amber-100'}`}>
                             <span className="text-2xl">{warningModal.isFinal ? '🚨' : '⚠️'}</span>
                         </div>
@@ -1256,7 +1354,7 @@ const StudentWorkspace = () => {
             )}
 
             {/* 1. HEADER */}
-            <header className="h-14 bg-white border-b border-gray-200 flex items-center justify-between px-4 z-20 shadow-sm flex-shrink-0">
+            <header className="h-14 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between px-4 z-20 shadow-sm flex-shrink-0">
                 <div className="flex items-center gap-4">
                     <Button
                         variant="ghost"
@@ -1300,19 +1398,6 @@ const StudentWorkspace = () => {
                     {/* Compact Points Display Removed */}
 
 
-                    {currentQuestion.question_type !== 'mcq' && (
-                        <Button
-                            variant="secondary"
-                            size="sm"
-                            onClick={handleRunCode}
-                            disabled={isRunning || isSubmitting}
-                            className="bg-gray-100 hover:bg-gray-200 text-gray-700 h-9"
-                        >
-                            {isRunning ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Play className="w-4 h-4 mr-2" />}
-                            Run
-                        </Button>
-                    )}
-
                     {/* Read-Only Mode Navigation */}
                     {isReadOnly ? (
                         <div className="flex items-center gap-2">
@@ -1347,13 +1432,13 @@ const StudentWorkspace = () => {
                         </div>
                     ) : (
                         /* Normal Submission Mode */
-                        completedQuestions.has(currentQuestionIndex) ? (
+                        !isExamOrQuiz && completedQuestions.has(currentQuestionIndex) ? (
                             <div className="flex items-center gap-2">
                                 {/* Allow Retry */}
                                 <Button
                                     size="sm"
                                     variant="outline"
-                                    
+
                                     onClick={handleSubmit}
                                     disabled={isRunning || isSubmitting}
                                     className="h-9 shadow-sm gap-2"
@@ -1381,15 +1466,54 @@ const StudentWorkspace = () => {
                                 )}
                             </div>
                         ) : (
-                            <Button
-                                size="sm"
-                                onClick={handleSubmit}
-                                disabled={isRunning || isSubmitting}
-                                className="bg-green-600 hover:bg-green-700 text-white h-9 shadow-sm"
-                            >
-                                {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Send className="w-4 h-4 mr-2" />}
-                                Submit
-                            </Button>
+                            /* Not Completed */
+                            <>
+                                {currentQuestion.question_type !== 'mcq' && (
+                                    <>
+                                        <Button
+                                            variant="secondary"
+                                            size="sm"
+                                            onClick={handleRunCode}
+                                            disabled={isRunning || isSubmitting}
+                                            className="bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 h-9"
+                                        >
+                                            {isRunning ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Play className="w-4 h-4 mr-2" />}
+                                            Run
+                                        </Button>
+
+                                        <Button
+                                            variant="outline"
+                                            size="sm"
+                                            onClick={handleSkipAndNext}
+                                            disabled={isRunning || isSubmitting}
+                                            className="h-9 text-amber-700 border-amber-300 hover:bg-amber-50 gap-1.5"
+                                        >
+                                            <SkipForward className="w-4 h-4" />
+                                            Skip & Next
+                                        </Button>
+                                    </>
+                                )}
+
+                                <Button
+                                    size="sm"
+                                    onClick={handleSubmit}
+                                    disabled={isRunning || isSubmitting}
+                                    className="bg-green-600 hover:bg-green-700 text-white h-9 shadow-sm"
+                                >
+                                    {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Send className="w-4 h-4 mr-2" />}
+                                    Submit
+                                </Button>
+
+                                <Button
+                                    size="sm"
+                                    onClick={handleSubmitAndEnd}
+                                    disabled={isRunning || isSubmitting}
+                                    className="bg-blue-600 hover:bg-blue-700 text-white h-9 shadow-sm gap-1.5"
+                                >
+                                    {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCheck className="w-4 h-4" />}
+                                    Submit & End
+                                </Button>
+                            </>
                         )
                     )}
                 </div>
@@ -1399,7 +1523,7 @@ const StudentWorkspace = () => {
             <div className="flex-1 w-full overflow-hidden flex">
                 {/* LEFT PANEL: Description */}
                 <div
-                    className="w-[35%] min-w-[300px] max-w-[600px] bg-white border-r border-gray-200 flex flex-col h-full"
+                    className="w-[35%] min-w-[300px] max-w-[600px] bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 flex flex-col h-full"
                     onCopy={handleClipboardRestriction}
                     onCut={handleClipboardRestriction}
                     onPaste={handleClipboardRestriction}
@@ -1424,7 +1548,7 @@ const StudentWorkspace = () => {
                             <h3 className="text-sm font-semibold text-gray-900 mb-3">Example Test Cases</h3>
                             <div className="space-y-3">
                                 {testCases.slice(0, 2).map((tc, idx) => (
-                                    <div key={idx} className="bg-gray-50 rounded-lg p-3 text-xs font-mono border border-gray-200 select-none">
+                                    <div key={idx} className="bg-gray-50 dark:bg-gray-900 rounded-lg p-3 text-xs font-mono border border-gray-200 dark:border-gray-700 select-none">
                                         <div className="grid grid-cols-2 gap-2 mb-1">
                                             <span className="text-gray-500">Input:</span>
                                             <span className="text-gray-900">{tc.input}</span>
@@ -1439,7 +1563,7 @@ const StudentWorkspace = () => {
                         </div>
 
                         {currentQuestion.hint && (
-                            <div className="mt-8 border-t border-gray-100 pt-4">
+                            <div className="mt-8 border-t border-gray-100 dark:border-gray-800 pt-4">
                                 <button
                                     onClick={() => setShowHint(!showHint)}
                                     className="flex items-center gap-2 text-sm font-medium text-indigo-600 hover:text-indigo-700"
@@ -1448,13 +1572,13 @@ const StudentWorkspace = () => {
                                     {showHint ? 'Hide Hint' : 'Need a Hint?'}
                                 </button>
                                 {showHint && (
-                                    <motion.div
+                                    <Motion.div
                                         initial={{ opacity: 0, y: 5 }}
                                         animate={{ opacity: 1, y: 0 }}
                                         className="mt-3 bg-amber-50 text-amber-900 p-3 rounded-md text-sm border border-amber-100"
                                     >
                                         {currentQuestion.hint}
-                                    </motion.div>
+                                    </Motion.div>
                                 )}
                             </div>
                         )}
@@ -1462,7 +1586,7 @@ const StudentWorkspace = () => {
                 </div>
 
                 {/* RIGHT PANEL: Editor & Output - TAKES REMAINING SPACE */}
-                <div className="flex-1 bg-white flex flex-col h-full">
+                <div className="flex-1 bg-white dark:bg-gray-800 flex flex-col h-full">
                     {currentQuestion?.question_type === 'mcq' ? (
                         <div className="flex-1 overflow-hidden">
                             <McqWorkspaceRenderer
@@ -1473,237 +1597,243 @@ const StudentWorkspace = () => {
                             />
                         </div>
                     ) : (
-                        <div className="flex-[60] min-h-0 flex flex-col bg-[#2d2d2d]">
-                            <div className="bg-[#2d2d2d] border-b border-[#111] px-4 h-9 flex justify-between items-center text-xs text-gray-400 select-none flex-shrink-0">
-                                <div className="flex items-center gap-2">
-                                    {/* Language Dropdown */}
-                                    <div className="relative">
-                                        <select
-                                            value={selectedLanguage}
-                                            onChange={(e) => handleLanguageChange(e.target.value)}
-                                            className="bg-[#3d3d3d] text-blue-400 font-medium border border-[#555] rounded px-2 py-1 text-xs cursor-pointer hover:bg-[#4d4d4d] focus:outline-none focus:ring-1 focus:ring-blue-500"
-                                        >
-                                            {Object.entries(languageConfig).map(([key, lang]) => (
-                                                <option key={key} value={key} className="bg-[#3d3d3d] text-white">
-                                                    {lang.icon} {lang.name}
-                                                </option>
-                                            ))}
-                                        </select>
-                                    </div>
-                                </div>
-                                <span
-                                    className="hover:text-white cursor-pointer transition-colors flex items-center gap-1"
-                                    onClick={() => handleCodeChange(getWorkspaceStarterCode(currentQuestion, selectedLanguage))}
-                                >
-                                    <RotateCcw className="w-3 h-3" /> Reset
-                                </span>
-                            </div>
-
-                            <div
-                                className="flex-1 relative overflow-hidden bg-[#1e1e1e]"
-                                onCopy={handleClipboardRestriction}
-                                onCut={handleClipboardRestriction}
-                                onPaste={handleClipboardRestriction}
-                                onContextMenu={handleClipboardRestriction}
-                            >
-                                <MonacoEditor
-                                    height="100%"
-                                    language={languageConfig[selectedLanguage].monacoLang}
-                                    value={code}
-                                    theme="vs-dark"
-                                    onChange={(value) => handleCodeChange(value || '')}
-                                    onMount={handleMonacoMount}
-                                    options={{
-                                        fontSize: 14,
-                                        fontFamily: '"Fira Code", "Fira Mono", monospace',
-                                        fontLigatures: true,
-                                        minimap: { enabled: false },
-                                        scrollBeyondLastLine: false,
-                                        wordWrap: 'on',
-                                        readOnly: isReadOnly || isSubmitting,
-                                        automaticLayout: true,
-                                        tabSize: 4,
-                                        insertSpaces: true,
-                                        autoIndent: 'full',
-                                        formatOnType: true,
-                                        bracketPairColorization: { enabled: true },
-                                        autoClosingBrackets: 'always',
-                                        autoClosingQuotes: 'always',
-                                        lineNumbers: 'on',
-                                        renderLineHighlight: 'all',
-                                        scrollbar: { verticalScrollbarSize: 8, horizontalScrollbarSize: 8 },
-                                        padding: { top: 12, bottom: 12 },
-                                        contextmenu: false, // disable right-click copy/paste menu
-                                    }}
-                                />
-                            </div>
-                        </div>
-                    )}
-
-                    {/* DIVIDER */}
-                    {currentQuestion?.question_type !== 'mcq' && <div className="h-1 bg-gray-800 flex-shrink-0" />}
-
-                    {/* CONSOLE - SIMPLIFIED VERSION */}
-                    {currentQuestion?.question_type !== 'mcq' && (
-                        <div className="flex-[40] min-h-0 bg-white flex flex-col">
-                            <div className="h-9 bg-gray-50 border-b border-gray-200 flex items-center justify-between px-4 select-none flex-shrink-0">
-                                <div className="flex items-center gap-2">
-                                    <div className="flex items-center gap-2 text-gray-500 font-medium text-xs">
-                                        <Terminal className="w-3.5 h-3.5" />
-                                        Output
-                                    </div>
-                                    {isRunning && <span className="text-xs text-indigo-600 animate-pulse">Running Code...</span>}
-                                    {output?.status === 'error' && <span className="w-1.5 h-1.5 rounded-full bg-red-500" />}
-                                    {output?.status === 'failed' && <span className="w-1.5 h-1.5 rounded-full bg-orange-500" />}
-                                    {output?.status === 'success' && <span className="w-1.5 h-1.5 rounded-full bg-green-500" />}
-                                </div>
-                            </div>
-
-                            <div className="flex-1 overflow-auto p-4">
-                                {!output && !isRunning && (
-                                    <div className="flex flex-col items-center justify-center text-gray-400 h-full">
-                                        <Terminal className="w-12 h-12 mb-2 opacity-50" />
-                                        <span className="text-sm">Click "Run Code" to see your output here</span>
-                                    </div>
-                                )}
-
-                                {isRunning && (
-                                    <div className="flex flex-col items-center justify-center text-blue-600 h-full">
-                                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mb-2"></div>
-                                        <span className="text-sm">Running your Python code...</span>
-                                    </div>
-                                )}
-
-                                {output && (
-                                    <div className="space-y-4">
-                                        {/* Status */}
-                                        {/* Status */}
-                                        <div className={`p-3 rounded-lg border ${output.status === 'success' ? 'bg-green-50 border-green-200' :
-                                            output.status === 'failed' ? 'bg-orange-50 border-orange-200' :
-                                                'bg-red-50 border-red-200'
-                                            }`}>
-                                            <div className="flex flex-col gap-2">
-                                                <div className="flex items-center gap-2">
-                                                    {output.status === 'success' && <CheckCircle2 className="w-4 h-4 text-green-600" />}
-                                                    {output.status === 'failed' && <XCircle className="w-4 h-4 text-orange-600" />}
-                                                    {output.status === 'error' && <XCircle className="w-4 h-4 text-red-600" />}
-
-                                                    <span className={`font-medium text-sm ${output.status === 'success' ? 'text-green-800' :
-                                                        output.status === 'failed' ? 'text-orange-800' :
-                                                            'text-red-800'
-                                                        }`}>
-                                                        {output.message}
-                                                    </span>
-                                                </div>
+                        <PanelGroup direction="vertical" className="flex-1">
+                            <Panel defaultSize={60} minSize={10} className="flex flex-col">
+                                <div className="flex-1 min-h-0 flex flex-col bg-[#2d2d2d]">
+                                    <div className="bg-[#2d2d2d] border-b border-[#111] px-4 h-9 flex justify-between items-center text-xs text-gray-400 select-none flex-shrink-0">
+                                        <div className="flex items-center gap-2">
+                                            {/* Language Dropdown */}
+                                            <div className="relative">
+                                                <select
+                                                    value={selectedLanguage}
+                                                    onChange={(e) => handleLanguageChange(e.target.value)}
+                                                    className="bg-[#3d3d3d] text-blue-400 font-medium border border-[#555] rounded px-2 py-1 text-xs cursor-pointer hover:bg-[#4d4d4d] focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                                >
+                                                    {Object.entries(languageConfig).map(([key, lang]) => (
+                                                        <option key={key} value={key} className="bg-[#3d3d3d] text-white">
+                                                            {lang.icon} {lang.name}
+                                                        </option>
+                                                    ))}
+                                                </select>
                                             </div>
                                         </div>
+                                        <span
+                                            className="hover:text-white cursor-pointer transition-colors flex items-center gap-1"
+                                            onClick={() => handleCodeChange(getWorkspaceStarterCode(currentQuestion, selectedLanguage))}
+                                        >
+                                            <RotateCcw className="w-3 h-3" /> Reset
+                                        </span>
+                                    </div>
 
-                                        {/* Main Output Display */}
-                                        {output.results && output.results.length > 0 && (
-                                            <div className="space-y-3">
-                                                {output.results.map((result, idx) => (
-                                                    <div key={idx} className="border border-gray-200 rounded-lg overflow-hidden">
-                                                        {/* Output Header */}
-                                                        <div className="bg-blue-50 px-4 py-2 border-b border-blue-200">
-                                                            <h3 className="font-semibold text-blue-800 text-sm flex items-center gap-2">
-                                                                <Terminal className="w-4 h-4" />
-                                                                Your Code Output
-                                                                {result.error && <span className="text-red-600 text-xs">(Error)</span>}
-                                                            </h3>
+                                    <div
+                                        className="flex-1 relative overflow-hidden bg-[#1e1e1e]"
+                                        onCopy={handleClipboardRestriction}
+                                        onCut={handleClipboardRestriction}
+                                        onPaste={handleClipboardRestriction}
+                                        onContextMenu={handleClipboardRestriction}
+                                    >
+                                        <MonacoEditor
+                                            height="100%"
+                                            language={languageConfig[selectedLanguage].monacoLang}
+                                            value={code}
+                                            theme="vs-dark"
+                                            onChange={(value) => handleCodeChange(value || '')}
+                                            onMount={handleMonacoMount}
+                                            options={{
+                                                fontSize: 14,
+                                                fontFamily: '"Fira Code", "Fira Mono", monospace',
+                                                fontLigatures: true,
+                                                minimap: { enabled: false },
+                                                scrollBeyondLastLine: false,
+                                                wordWrap: 'on',
+                                                readOnly: isReadOnly || isSubmitting,
+                                                automaticLayout: true,
+                                                tabSize: 4,
+                                                insertSpaces: true,
+                                                autoIndent: 'full',
+                                                formatOnType: true,
+                                                bracketPairColorization: { enabled: true },
+                                                autoClosingBrackets: 'always',
+                                                autoClosingQuotes: 'always',
+                                                lineNumbers: 'on',
+                                                renderLineHighlight: 'all',
+                                                scrollbar: { verticalScrollbarSize: 8, horizontalScrollbarSize: 8 },
+                                                padding: { top: 12, bottom: 12 },
+                                                contextmenu: false, // disable right-click copy/paste menu
+                                            }}
+                                        />
+                                    </div>
+                                </div>
+                            </Panel>
+
+                            <PanelResizeHandle className="h-1.5 bg-gray-800 hover:bg-indigo-500 transition-colors cursor-row-resize flex items-center justify-center relative">
+                                <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                                    <div className="w-8 h-0.5 bg-gray-600 rounded-full opacity-50 shadow-sm"></div>
+                                </div>
+                            </PanelResizeHandle>
+
+                            <Panel defaultSize={40} minSize={10} className="flex flex-col">
+                                <div className="flex-1 min-h-0 bg-white dark:bg-gray-800 flex flex-col">
+                                    <div className="h-9 bg-gray-50 dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between px-4 select-none flex-shrink-0">
+                                        <div className="flex items-center gap-2">
+                                            <div className="flex items-center gap-2 text-gray-500 font-medium text-xs">
+                                                <Terminal className="w-3.5 h-3.5" />
+                                                Output
+                                            </div>
+                                            {isRunning && <span className="text-xs text-indigo-600 animate-pulse">Running Code...</span>}
+                                            {output?.status === 'error' && <span className="w-1.5 h-1.5 rounded-full bg-red-500" />}
+                                            {output?.status === 'failed' && <span className="w-1.5 h-1.5 rounded-full bg-orange-500" />}
+                                            {output?.status === 'success' && <span className="w-1.5 h-1.5 rounded-full bg-green-500" />}
+                                        </div>
+                                    </div>
+
+                                    <div className="flex-1 overflow-auto p-4">
+                                        {!output && !isRunning && (
+                                            <div className="flex flex-col items-center justify-center text-gray-400 h-full">
+                                                <Terminal className="w-12 h-12 mb-2 opacity-50" />
+                                                <span className="text-sm">Click "Run Code" to see your output here</span>
+                                            </div>
+                                        )}
+
+                                        {isRunning && (
+                                            <div className="flex flex-col items-center justify-center text-blue-600 h-full">
+                                                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mb-2"></div>
+                                                <span className="text-sm">Running your Python code...</span>
+                                            </div>
+                                        )}
+
+                                        {output && (
+                                            <div className="space-y-4">
+                                                {/* Status */}
+                                                <div className={`p-3 rounded-lg border ${output.status === 'success' ? 'bg-green-50 border-green-200' :
+                                                    output.status === 'failed' ? 'bg-orange-50 border-orange-200' :
+                                                        'bg-red-50 border-red-200'
+                                                    }`}>
+                                                    <div className="flex flex-col gap-2">
+                                                        <div className="flex items-center gap-2">
+                                                            {output.status === 'success' && <CheckCircle2 className="w-4 h-4 text-green-600" />}
+                                                            {output.status === 'failed' && <XCircle className="w-4 h-4 text-orange-600" />}
+                                                            {output.status === 'error' && <XCircle className="w-4 h-4 text-red-600" />}
+
+                                                            <span className={`font-medium text-sm ${output.status === 'success' ? 'text-green-800' :
+                                                                output.status === 'failed' ? 'text-orange-800' :
+                                                                    'text-red-800'
+                                                                }`}>
+                                                                {output.message}
+                                                            </span>
                                                         </div>
+                                                    </div>
+                                                </div>
 
-                                                        <div className="p-4 space-y-3">
-                                                            {/* Input (if any) */}
-                                                            {result.input && (
-                                                                <div>
-                                                                    <div className="text-xs font-semibold text-gray-500 mb-1">INPUT PROVIDED:</div>
-                                                                    <div className="bg-gray-100 p-2 rounded text-sm font-mono border">
-                                                                        {result.input}
-                                                                    </div>
+                                                {/* Main Output Display */}
+                                                {output.results && output.results.length > 0 && (
+                                                    <div className="space-y-3">
+                                                        {output.results.map((result, idx) => (
+                                                            <div key={idx} className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
+                                                                {/* Output Header */}
+                                                                <div className="bg-blue-50 px-4 py-2 border-b border-blue-200">
+                                                                    <h3 className="font-semibold text-blue-800 text-sm flex items-center gap-2">
+                                                                        <Terminal className="w-4 h-4" />
+                                                                        Your Code Output
+                                                                        {result.error && <span className="text-red-600 text-xs">(Error)</span>}
+                                                                    </h3>
                                                                 </div>
-                                                            )}
 
-                                                            {/* Main Output - Most Important */}
-                                                            <div>
-                                                                <div className="text-sm font-semibold text-gray-700 mb-2 flex items-center gap-2">
-                                                                    <span className="bg-blue-100 text-blue-800 px-2 py-1 rounded text-xs font-bold">OUTPUT</span>
-                                                                    What your code printed:
-                                                                </div>
-                                                                <div className={`p-3 rounded border-2 text-sm font-mono ${result.error ? 'bg-red-50 border-red-300 text-red-800' :
-                                                                    result.testPassed ? 'bg-green-50 border-green-300 text-green-800' :
-                                                                        'bg-orange-50 border-orange-300 text-orange-900'
-                                                                    }`}>
-                                                                    {result.error ? (
+                                                                <div className="p-4 space-y-3">
+                                                                    {/* Input (if any) */}
+                                                                    {result.input && (
                                                                         <div>
-                                                                            <div className="font-bold text-red-600 mb-1">❌ Error:</div>
-                                                                            <div className="whitespace-pre-wrap">{result.error}</div>
+                                                                            <div className="text-xs font-semibold text-gray-500 mb-1">INPUT PROVIDED:</div>
+                                                                            <div className="bg-gray-100 dark:bg-gray-800 p-2 rounded text-sm font-mono border">
+                                                                                {result.input}
+                                                                            </div>
                                                                         </div>
-                                                                    ) : (
-                                                                        <div className="whitespace-pre-wrap">
-                                                                            {result.output || <span className="text-gray-500 italic">(no output)</span>}
+                                                                    )}
+
+                                                                    {/* Main Output - Most Important */}
+                                                                    <div>
+                                                                        <div className="text-sm font-semibold text-gray-700 mb-2 flex items-center gap-2">
+                                                                            <span className="bg-blue-100 text-blue-800 px-2 py-1 rounded text-xs font-bold">OUTPUT</span>
+                                                                            What your code printed:
+                                                                        </div>
+                                                                        <div className={`p-3 rounded border-2 text-sm font-mono ${result.error ? 'bg-red-50 border-red-300 text-red-800' :
+                                                                            result.testPassed ? 'bg-green-50 border-green-300 text-green-800' :
+                                                                                'bg-orange-50 border-orange-300 text-orange-900'
+                                                                            }`}>
+                                                                            {result.error ? (
+                                                                                <div>
+                                                                                    <div className="font-bold text-red-600 mb-1">❌ Error:</div>
+                                                                                    <div className="whitespace-pre-wrap">{result.error}</div>
+                                                                                </div>
+                                                                            ) : (
+                                                                                <div className="whitespace-pre-wrap">
+                                                                                    {result.output || <span className="text-gray-500 italic">(no output)</span>}
+                                                                                </div>
+                                                                            )}
+                                                                        </div>
+                                                                    </div>
+
+                                                                    {/* Test Comparison (Secondary) */}
+                                                                    {result.expected && (
+                                                                        <div className="border-t border-gray-200 dark:border-gray-700 pt-3 mt-3">
+                                                                            <div className="text-xs font-semibold text-gray-500 mb-2">📋 Test Comparison:</div>
+                                                                            <div className="grid grid-cols-2 gap-3 text-xs">
+                                                                                <div>
+                                                                                    <div className="font-semibold text-gray-600 mb-1">Expected:</div>
+                                                                                    <div className="bg-blue-100 p-2 rounded font-mono text-blue-800 whitespace-pre-wrap">
+                                                                                        {result.expected}
+                                                                                    </div>
+                                                                                </div>
+                                                                                <div>
+                                                                                    <div className="font-semibold text-gray-600 mb-1">Your Output:</div>
+                                                                                    <div className={`p-2 rounded font-mono whitespace-pre-wrap ${result.testPassed ? 'bg-green-100 text-green-800' : 'bg-orange-100 text-orange-800'
+                                                                                        }`}>
+                                                                                        {result.output || '(no output)'}
+                                                                                    </div>
+                                                                                </div>
+                                                                            </div>
+                                                                            <div className={`mt-2 text-xs font-medium ${result.testPassed ? 'text-green-600' : 'text-orange-600'}`}>
+                                                                                {result.testPassed ? '✅ Matches expected output' : '❌ Output mismatch'}
+                                                                            </div>
                                                                         </div>
                                                                     )}
                                                                 </div>
                                                             </div>
-
-                                                            {/* Test Comparison (Secondary) */}
-                                                            {result.expected && (
-                                                                <div className="border-t border-gray-200 pt-3 mt-3">
-                                                                    <div className="text-xs font-semibold text-gray-500 mb-2">📋 Test Comparison:</div>
-                                                                    <div className="grid grid-cols-2 gap-3 text-xs">
-                                                                        <div>
-                                                                            <div className="font-semibold text-gray-600 mb-1">Expected:</div>
-                                                                            <div className="bg-blue-100 p-2 rounded font-mono text-blue-800 whitespace-pre-wrap">
-                                                                                {result.expected}
-                                                                            </div>
-                                                                        </div>
-                                                                        <div>
-                                                                            <div className="font-semibold text-gray-600 mb-1">Your Output:</div>
-                                                                            <div className={`p-2 rounded font-mono whitespace-pre-wrap ${result.testPassed ? 'bg-green-100 text-green-800' : 'bg-orange-100 text-orange-800'
-                                                                                }`}>
-                                                                                {result.output || '(no output)'}
-                                                                            </div>
-                                                                        </div>
-                                                                    </div>
-                                                                    <div className={`mt-2 text-xs font-medium ${result.testPassed ? 'text-green-600' : 'text-orange-600'}`}>
-                                                                        {result.testPassed ? '✅ Matches expected output' : '❌ Output mismatch'}
-                                                                    </div>
-                                                                </div>
-                                                            )}
-                                                        </div>
+                                                        ))}
                                                     </div>
-                                                ))}
+                                                )}
+
+                                                {/* Debug info (remove this later) */}
+                                                <details className="text-xs text-gray-500">
+                                                    <summary className="cursor-pointer hover:text-gray-700 dark:hover:text-gray-300">Debug Info (click to expand)</summary>
+                                                    <pre className="mt-2 p-2 bg-gray-100 dark:bg-gray-800 rounded overflow-auto text-xs">
+                                                        {JSON.stringify(output, null, 2)}
+                                                    </pre>
+                                                </details>
                                             </div>
                                         )}
-
-                                        {/* Debug info (remove this later) */}
-                                        <details className="text-xs text-gray-500">
-                                            <summary className="cursor-pointer hover:text-gray-700">Debug Info (click to expand)</summary>
-                                            <pre className="mt-2 p-2 bg-gray-100 rounded overflow-auto text-xs">
-                                                {JSON.stringify(output, null, 2)}
-                                            </pre>
-                                        </details>
                                     </div>
-                                )}
-                            </div>
-                        </div>
-                    )}
+                                </div>
+                            </Panel>
+                        </PanelGroup>
+                    )
+                    }
                 </div>
             </div>
 
             {/* Exit Warning Modal */}
             <AnimatePresence>
                 {showExitWarning && (
-                    <motion.div
+                    <Motion.div
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
                         exit={{ opacity: 0 }}
                         className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-[1px]"
                     >
-                        <motion.div
+                        <Motion.div
                             initial={{ scale: 0.8, opacity: 0 }}
                             animate={{ scale: 1, opacity: 1 }}
-                            className="bg-white p-8 rounded-2xl shadow-2xl text-center max-w-md w-full mx-4"
+                            className="bg-white dark:bg-gray-800 p-8 rounded-2xl shadow-2xl text-center max-w-md w-full mx-4"
                         >
                             <div className="w-16 h-16 bg-amber-100 rounded-full flex items-center justify-center mx-auto mb-4">
                                 <XCircle className="w-8 h-8 text-amber-600" />
@@ -1730,24 +1860,24 @@ const StudentWorkspace = () => {
                                     {isSubmitting ? 'Submitting...' : 'Exit & Submit Assignment'}
                                 </Button>
                             </div>
-                        </motion.div>
-                    </motion.div>
+                        </Motion.div>
+                    </Motion.div>
                 )}
             </AnimatePresence>
 
             {/* Success Modal */}
             <AnimatePresence>
                 {showConfetti && (
-                    <motion.div
+                    <Motion.div
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
                         exit={{ opacity: 0 }}
                         className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-[1px]"
                     >
-                        <motion.div
+                        <Motion.div
                             initial={{ scale: 0.8, opacity: 0 }}
                             animate={{ scale: 1, opacity: 1 }}
-                            className="bg-white p-8 rounded-2xl shadow-2xl text-center max-w-sm w-full mx-4"
+                            className="bg-white dark:bg-gray-800 p-8 rounded-2xl shadow-2xl text-center max-w-sm w-full mx-4"
                         >
                             <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
                                 <CheckCircle2 className="w-8 h-8 text-green-600" />
@@ -1757,8 +1887,8 @@ const StudentWorkspace = () => {
                             <Button onClick={() => navigate('/student/dashboard')} className="w-full bg-gray-900 text-white">
                                 Back to Dashboard
                             </Button>
-                        </motion.div>
-                    </motion.div>
+                        </Motion.div>
+                    </Motion.div>
                 )}
             </AnimatePresence>
         </div >

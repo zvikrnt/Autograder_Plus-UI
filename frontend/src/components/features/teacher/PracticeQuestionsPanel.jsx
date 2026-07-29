@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useDraggable } from '@dnd-kit/core';
 import { Search, Filter, GripVertical, Plus } from 'lucide-react';
 import { Input } from '../../ui/input';
@@ -67,18 +67,14 @@ function DraggableQuestion({ question, onAdd }) {
     );
 }
 
-export default function PracticeQuestionsPanel({ onAddQuestion, questionType }) {
+export default function PracticeQuestionsPanel({ onAddQuestion, questionType, refreshKey = 0 }) {
     const [questions, setQuestions] = useState([]);
     const [loading, setLoading] = useState(false);
     const [searchTerm, setSearchTerm] = useState('');
     const [difficultyFilter, setDifficultyFilter] = useState('all');
     const [categoryFilter, setCategoryFilter] = useState('all');
 
-    useEffect(() => {
-        loadQuestions();
-    }, []);
-
-    const loadQuestions = async () => {
+    const loadQuestions = useCallback(async () => {
         try {
             setLoading(true);
             const res = await practiceService.getPracticeLibrary();
@@ -101,7 +97,7 @@ export default function PracticeQuestionsPanel({ onAddQuestion, questionType }) 
         } finally {
             setLoading(false);
         }
-    };
+    }, [questionType]);
 
     const categories = [...new Set(questions.map((q) => q.category).filter(Boolean))];
 
@@ -118,7 +114,7 @@ export default function PracticeQuestionsPanel({ onAddQuestion, questionType }) 
 
     useEffect(() => {
         loadQuestions();
-    }, [questionType]);
+    }, [loadQuestions, refreshKey]);
 
     return (
         <div className="flex flex-col h-full bg-gray-50/50 rounded-xl border border-gray-200 overflow-hidden">

@@ -14,7 +14,8 @@ import {
     XCircle,
     Loader2,
     AlertCircle,
-    Clock
+    Clock,
+    Layers
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -42,6 +43,7 @@ import ErrorWordCloud from "../../components/features/analytics/ErrorWordCloud";
 import BoxPlotChart from "../../components/features/analytics/BoxPlotChart";
 import ErrorHeatmap from "../../components/features/analytics/ErrorHeatmap";
 import CodeSimilarityMap from "../../components/features/analytics/CodeSimilarityMap";
+import ClusterGradingPanel from "../../components/features/analytics/ClusterGradingPanel";
 
 export default function AssignmentDashboard() {
     const { id } = useParams();
@@ -221,7 +223,7 @@ export default function AssignmentDashboard() {
 
                 {/* Main Content Tabs */}
                 <Tabs defaultValue="submissions" className="space-y-6">
-                    <TabsList className="bg-white border p-1 rounded-lg">
+                    <TabsList className="bg-white dark:bg-gray-800 border p-1 rounded-lg">
                         <TabsTrigger value="submissions" className="flex items-center gap-2">
                             <ListChecks className="w-4 h-4" />
                             Submissions
@@ -229,6 +231,10 @@ export default function AssignmentDashboard() {
                         <TabsTrigger value="analytics" className="flex items-center gap-2">
                             <BarChart3 className="w-4 h-4" />
                             Analytics & Insights
+                        </TabsTrigger>
+                        <TabsTrigger value="cluster" className="flex items-center gap-2">
+                            <Layers className="w-4 h-4" />
+                            Cluster Grading
                         </TabsTrigger>
                     </TabsList>
 
@@ -415,9 +421,9 @@ export default function AssignmentDashboard() {
                                     // EMPTY STATE HANDLER
                                     if (validSubs.length === 0) {
                                         return (
-                                            <Card className="border-dashed bg-gray-50/50">
+                                            <Card className="border-dashed bg-gray-50/50 dark:bg-gray-900">
                                                 <CardContent className="flex flex-col items-center justify-center py-20 text-center">
-                                                    <div className="bg-white p-4 rounded-full shadow-sm mb-4">
+                                                    <div className="bg-white dark:bg-gray-800 p-4 rounded-full shadow-sm mb-4">
                                                         <Clock className="w-10 h-10 text-indigo-400" />
                                                     </div>
                                                     <h3 className="text-xl font-semibold text-gray-900 mb-2">
@@ -545,6 +551,11 @@ export default function AssignmentDashboard() {
                                 })()}
                             </div>
                         )}
+                    </TabsContent>
+
+                    {/* --- TAB: CLUSTER GRADING --- */}
+                    <TabsContent value="cluster">
+                        <ClusterGradingPanel assignmentId={id} />
                     </TabsContent>
                 </Tabs>
             </motion.div>

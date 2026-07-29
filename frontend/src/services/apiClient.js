@@ -18,6 +18,14 @@ apiClient.interceptors.request.use(
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
+
+    // When sending FormData, remove Content-Type so the browser sets the
+    // correct multipart boundary automatically. An explicit Content-Type
+    // without the boundary parameter causes the server to reject the upload.
+    if (typeof FormData !== 'undefined' && config.data instanceof FormData) {
+      delete config.headers['Content-Type'];
+    }
+
     // Debug logging for registration requests
     if (config.url?.includes('register')) {
       console.log('=== REGISTRATION REQUEST ===');

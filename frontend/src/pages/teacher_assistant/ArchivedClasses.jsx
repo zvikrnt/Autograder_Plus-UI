@@ -26,7 +26,7 @@ const itemVariants = {
 
 const ArchivedClassCard = ({ cl }) => (
     <motion.div variants={itemVariants}>
-        <Card className="group h-full flex flex-col overflow-hidden border-gray-200 hover:border-gray-300 transition-all hover:shadow-md bg-gray-50/50">
+        <Card className="group h-full flex flex-col overflow-hidden border-gray-200 dark:border-gray-700 hover:border-gray-300 transition-all hover:shadow-md bg-gray-50/50 dark:bg-gray-900">
             {/* Grayscale Header */}
             <div className={`h-28 relative p-5 flex flex-col justify-between overflow-hidden`}>
                 <div className={`absolute inset-0 ${cl.bgPattern} opacity-20 grepayscale filter grayscale group-hover:grayscale-0 transition-all duration-500`} />
@@ -62,7 +62,7 @@ const ArchivedClassCard = ({ cl }) => (
             </div>
 
             <CardContent className="p-0">
-                <div className="px-5 py-4 border-t border-gray-100 bg-white">
+                    <div className="px-5 py-4 border-t border-gray-100 dark:border-gray-800 bg-white dark:bg-gray-800">
                     <div className="flex items-center gap-2 text-xs text-amber-600 bg-amber-50 w-fit px-2 py-1 rounded-full border border-amber-100">
                         <Archive className="w-3 h-3" />
                         <span className="font-medium uppercase tracking-wide">Archived</span>
@@ -73,8 +73,8 @@ const ArchivedClassCard = ({ cl }) => (
                 </div>
             </CardContent>
 
-            <CardFooter className="p-4 bg-gray-50 border-t border-gray-100 flex justify-end">
-                <Button variant="outline" size="sm" className="w-full text-gray-600 border-gray-300 hover:bg-white hover:text-indigo-600" asChild>
+            <CardFooter className="p-4 bg-gray-50 dark:bg-gray-900 border-t border-gray-100 dark:border-gray-800 flex justify-end">
+                <Button variant="outline" size="sm" className="w-full text-gray-600 border-gray-300 dark:border-gray-600 hover:bg-white dark:hover:bg-gray-800 hover:text-indigo-600" asChild>
                     <Link to={`/teacher/class/${cl.id}`}>View Records</Link>
                 </Button>
             </CardFooter>
@@ -116,7 +116,7 @@ export default function ArchivedClasses() {
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
                     <div>
                         <h1 className="text-3xl font-bold text-gray-900 tracking-tight flex items-center gap-3">
-                            <div className="p-2 bg-gray-100 rounded-lg">
+                            <div className="p-2 bg-gray-100 dark:bg-gray-800 rounded-lg">
                                 <Archive className="w-6 h-6 text-gray-500" />
                             </div>
                             Archived Classes
@@ -144,12 +144,12 @@ export default function ArchivedClasses() {
                 {/* Content Grid */}
                 {archivedClasses.length === 0 ? (
                     <motion.div
-                        className="flex flex-col items-center justify-center py-24 px-4 bg-white rounded-xl border border-dashed border-gray-200"
+                        className="flex flex-col items-center justify-center py-24 px-4 bg-white dark:bg-gray-800 rounded-xl border border-dashed border-gray-200 dark:border-gray-700"
                         initial={{ opacity: 0, scale: 0.95 }}
                         animate={{ opacity: 1, scale: 1 }}
                         transition={{ delay: 0.2 }}
                     >
-                        <div className="w-16 h-16 rounded-full bg-gray-50 flex items-center justify-center mb-4">
+                        <div className="w-16 h-16 rounded-full bg-gray-50 dark:bg-gray-900 flex items-center justify-center mb-4">
                             <Archive className="w-8 h-8 text-gray-300" />
                         </div>
                         <h3 className="text-lg font-semibold text-gray-900 mb-1">No Archived Classes</h3>

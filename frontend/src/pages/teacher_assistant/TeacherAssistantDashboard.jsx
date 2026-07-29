@@ -40,7 +40,7 @@ const ClassCard = ({ cl }) => {
     return (
         <motion.div variants={itemVariants} className="h-full">
             <Link to={`/teacher/class/${cl.id}`} className="block h-full group">
-                <Card className="h-full flex flex-col overflow-hidden border border-gray-200 transition-all duration-300 hover:shadow-xl hover:border-gray-300 hover:-translate-y-1">
+                <Card className="h-full flex flex-col overflow-hidden border border-gray-200 dark:border-gray-700 transition-all duration-300 hover:shadow-xl hover:border-gray-300 hover:-translate-y-1">
                     <div className="flex h-full">
                         {/* Colored Side Accent */}
                         <div className={`w-1.5 ${accentColor} group-hover:w-3 transition-all duration-300`} />
@@ -79,7 +79,7 @@ const ClassCard = ({ cl }) => {
                             </CardContent>
 
                             {/* Footer Area with Action or Status */}
-                            <div className="p-4 bg-gray-50/50 border-t border-gray-100 flex items-center justify-between">
+                            <div className="p-4 bg-gray-50/50 dark:bg-gray-900 border-t border-gray-100 dark:border-gray-800 flex items-center justify-between">
                                 {cl.has_pending_grading ? (
                                     <div className="flex items-center gap-2 text-xs font-bold text-amber-600 bg-amber-50 px-3 py-1.5 rounded-full border border-amber-100">
                                         <span className="relative flex h-2 w-2">
@@ -164,7 +164,7 @@ export default function TeacherDashboard() {
                     <Button variant="outline" onClick={fetchClasses} className="mt-4">Retry</Button>
                 </div>
             ) : classes.length === 0 ? (
-                <div className="text-center py-20 bg-gray-50/50 border-2 border-dashed border-gray-200 rounded-xl">
+                <div className="text-center py-20 bg-gray-50/50 dark:bg-gray-900 border-2 border-dashed border-gray-200 dark:border-gray-700 rounded-xl">
                     <h3 className="text-xl font-semibold text-gray-700">No classes yet</h3>
                     <p className="text-gray-500 mt-2">Create your first class to get started</p>
                 </div>

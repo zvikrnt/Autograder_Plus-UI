@@ -6,6 +6,7 @@ import { Badge } from '../../ui/badge';
 import { Button } from '../../ui/button';
 import { gamificationService } from '../../../services/gamificationService';
 import { useLeaderboardWebSocket, useAuthenticatedWebSocket } from '../../../hooks/useWebSocket';
+import { tokenManager } from '../../../utils/tokenManager';
 import './MobileResponsive.css';
 
 const LeaderboardWidget = ({
@@ -14,7 +15,9 @@ const LeaderboardWidget = ({
   limit = 10,
   showUserRank = true,
   compact = false,
-  className = ''
+  className = '',
+  scrollable = false,
+  entriesMaxHeightClass = 'max-h-[340px]'
 }) => {
   const [leaderboardData, setLeaderboardData] = useState([]);
   const [userRank, setUserRank] = useState(null);
@@ -34,9 +37,9 @@ const LeaderboardWidget = ({
     isConnected
   } = useLeaderboardWebSocket();
 
-  // Set auth token from localStorage on mount
+  // Set auth token from sessionStorage via tokenManager on mount
   useEffect(() => {
-    const token = localStorage.getItem('access_token');
+    const token = tokenManager.getAccessToken();
     if (token) {
       setAuthToken(token);
     }
@@ -153,7 +156,7 @@ const LeaderboardWidget = ({
   const getRankStyling = (rank) => {
     switch (rank) {
       case 1:
-        return 'bg-gradient-to-r from-yellow-50 to-amber-50 border-yellow-200';
+        return 'bg-gradient-to-r from-yellow-50 to-amber-50 border-yellow-200 dark:from-yellow-900/30 dark:to-amber-900/30 dark:border-yellow-700';
       case 2:
         return 'bg-gradient-to-r from-gray-50 to-slate-50 border-gray-200';
       case 3:
@@ -265,7 +268,7 @@ const LeaderboardWidget = ({
         )}
 
         {/* Leaderboard Entries */}
-        <div className="space-y-2">
+        <div className={`${scrollable ? `${entriesMaxHeightClass} overflow-y-auto pr-1` : ''} space-y-2`}>
           <AnimatePresence mode="popLayout">
             {leaderboardData.map((entry, index) => {
               const rankChange = getRankChange(entry.rank, entry.user.id);

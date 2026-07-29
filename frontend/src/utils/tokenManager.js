@@ -1,33 +1,36 @@
 // Token Management Utilities
+// Uses sessionStorage so each browser tab maintains its own user session.
+// This prevents the "wrong user on refresh" concurrency bug where
+// logging in as User B in Tab 2 would overwrite User A's tokens in Tab 1.
 const TOKEN_KEYS = {
   ACCESS: 'autograder_access_token',
   REFRESH: 'autograder_refresh_token',
 };
 
 export const tokenManager = {
-  // Get tokens from localStorage
+  // Get tokens from sessionStorage
   getAccessToken: () => {
-    return localStorage.getItem(TOKEN_KEYS.ACCESS);
+    return sessionStorage.getItem(TOKEN_KEYS.ACCESS);
   },
 
   getRefreshToken: () => {
-    return localStorage.getItem(TOKEN_KEYS.REFRESH);
+    return sessionStorage.getItem(TOKEN_KEYS.REFRESH);
   },
 
-  // Set tokens in localStorage
+  // Set tokens in sessionStorage
   setTokens: (accessToken, refreshToken) => {
     if (accessToken) {
-      localStorage.setItem(TOKEN_KEYS.ACCESS, accessToken);
+      sessionStorage.setItem(TOKEN_KEYS.ACCESS, accessToken);
     }
     if (refreshToken) {
-      localStorage.setItem(TOKEN_KEYS.REFRESH, refreshToken);
+      sessionStorage.setItem(TOKEN_KEYS.REFRESH, refreshToken);
     }
   },
 
-  // Clear tokens from localStorage
+  // Clear tokens from sessionStorage
   clearTokens: () => {
-    localStorage.removeItem(TOKEN_KEYS.ACCESS);
-    localStorage.removeItem(TOKEN_KEYS.REFRESH);
+    sessionStorage.removeItem(TOKEN_KEYS.ACCESS);
+    sessionStorage.removeItem(TOKEN_KEYS.REFRESH);
   },
 
   // Check if user is authenticated

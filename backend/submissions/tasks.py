@@ -138,17 +138,47 @@ def execute_submission_task(attempt_id, language="python"):
 # MASTER TASK — splits work per-question and spawns one worker per question
 # ---------------------------------------------------------------------------
 
+def _ai_question_is_complete(aq):
+    """A question is 'done' when every student's latest attempt already has
+    ai_analysis_data. Used to resume a stopped run without re-analyzing it.
+    Returns (is_complete, latest_attempt_ids)."""
+    latest_ids = list(
+        SubmissionAttempt.objects
+        .filter(assignment_question=aq)
+        .order_by("student_id", "-created_at")
+        .distinct("student_id")
+        .values_list("id", flat=True)
+    )
+    if not latest_ids:
+        return False, []
+    missing = (
+        SubmissionAttempt.objects
+        .filter(id__in=latest_ids, ai_analysis_data__isnull=True)
+        .exists()
+    )
+    return (not missing), latest_ids
+
+
 @shared_task(bind=True)
-def analyze_assignment_ai_task(self, assignment_id, ai_task_id):
+def analyze_assignment_ai_task(self, assignment_id, ai_task_id, resume=True):
     """
     MASTER TASK: For each question in the assignment, collects the latest
     submission from every student and dispatches a single `analyze_question_ai_task`
     worker.  One worker = one question = one pipeline run (the heavy model is
     loaded only once per question batch).
+
+    When ``resume`` is True (the default), questions that are already fully
+    analyzed (every latest attempt has ai_analysis_data) are skipped, so a
+    stopped/failed run continues from the last unfinished question instead of
+    restarting the whole assignment. Force-restart passes resume=False.
     """
     from django.conf import settings
     from assignments.models import Assignment
     from .models import AIAnalysisTask
+
+    def _log(msg: str):
+        logger.info(msg)
+        _append_logs_to_task(ai_task_id, [msg])
 
     try:
         assignment = Assignment.objects.get(id=assignment_id)
@@ -156,7 +186,8 @@ def analyze_assignment_ai_task(self, assignment_id, ai_task_id):
         ai_task.status = "running"
         ai_task.save(update_fields=["status"])
 
-        logger.info(f"[MASTER] Starting for assignment: {assignment.title} ({assignment_id})")
+        _log(f"[MASTER] Starting analysis for assignment: {assignment.title} "
+             f"({'resume' if resume else 'full restart'})")
 
         autograder_plus_root = Path(settings.BASE_DIR).parent.parent / "Autograder_plus"
         main_script = str(autograder_plus_root / "main.py")
@@ -164,33 +195,31 @@ def analyze_assignment_ai_task(self, assignment_id, ai_task_id):
 
         question_task_ids = []
         total_questions = 0
+        already_done = 0
 
         for aq in assignment.assignmentquestion_set.select_related("question"):
             question = aq.question
 
-            # Latest attempt per student for this question
-            attempt_ids = list(
-                SubmissionAttempt.objects
-                .filter(assignment_question=aq)
-                .order_by("student_id", "-created_at")
-                .distinct("student_id")
-                .values_list("id", flat=True)
-            )
+            is_complete, attempt_ids = _ai_question_is_complete(aq)
 
             if not attempt_ids:
-                logger.info(f"[MASTER] No submissions for question '{question.slug}', skipping.")
+                _log(f"[MASTER] Skipping question '{question.slug}' (no submissions).")
+                continue
+
+            # Resume: skip questions already fully analyzed from a prior run.
+            if resume and is_complete:
+                already_done += 1
+                total_questions += 1
+                _log(f"[MASTER] Resume — '{question.slug}' already analyzed, skipping.")
                 continue
 
             # Build the config that Autograder_plus expects — use question.config directly.
-            # We only add the extra fields that the pipeline *actually* reads.
             q_config = question.config or {}
             pipeline_config = {
-                # Fields the Ingestor / pipeline uses:
                 "assignment_id": f"{assignment_id}_{question.slug}",
                 "language": q_config.get("language", "python").lower(),
                 "question": question.description,
                 "test_cases": question.test_cases or [],
-                # Keep every field from question.config as-is (entry_point, execution_mode, etc.)
                 **q_config,
             }
 
@@ -209,27 +238,39 @@ def analyze_assignment_ai_task(self, assignment_id, ai_task_id):
                     main_script=main_script,
                     question_slug=question.slug,
                 ),
-                queue="ai_analysis",  # dedicated queue — ignored by old zombie workers
+                queue="ai_analysis",
             )
             question_task_ids.append(task.id)
             total_questions += 1
+            _log(f"[MASTER] Dispatched worker for question: {question.slug}")
 
-        # Update task record with totals
+        # Update task record with totals. Questions skipped as already-complete
+        # (resume) are pre-counted into completed_batches, since no worker will
+        # run for them.
         ai_task.task_ids = question_task_ids
-        ai_task.total_batches = total_questions          # 1 batch = 1 question
+        ai_task.total_batches = total_questions
+        ai_task.completed_batches = already_done
         ai_task.total_submissions = SubmissionAttempt.objects.filter(
             assignment_question__assignment_id=assignment_id
         ).count()
-        ai_task.save(update_fields=["task_ids", "total_batches", "total_submissions"])
+        ai_task.save(update_fields=["task_ids", "total_batches",
+                                    "completed_batches", "total_submissions"])
 
+        dispatched = len(question_task_ids)
         if total_questions == 0:
             ai_task.status = "completed"
             ai_task.save(update_fields=["status"])
-            logger.info(f"[MASTER] No questions with submissions — marked completed immediately.")
+            _log(f"[MASTER] Completed (no submissions found).")
+        elif dispatched == 0:
+            # Everything was already analyzed — nothing to dispatch, so finish now.
+            ai_task.status = "completed"
+            ai_task.save(update_fields=["status"])
+            _log(f"[MASTER] Resume — all {already_done} question(s) already analyzed. Done.")
         else:
-            logger.info(f"[MASTER] Spawned {total_questions} question workers for {assignment_id}.")
+            _log(f"[MASTER] Dispatched {dispatched} worker(s); "
+                 f"{already_done} already complete.")
 
-        return f"Spawned {total_questions} question workers"
+        return f"Spawned {dispatched} question workers ({already_done} skipped)"
 
     except Exception as exc:
         logger.error(f"[MASTER] Failed for {assignment_id}: {exc}", exc_info=True)
@@ -267,19 +308,24 @@ def analyze_question_ai_task(
     """
     from .models import AIAnalysisTask
 
+    import time
     staging_path = Path(staging_dir)
     log_lines = []  # collected for the admin UI
+    saved_count = 0  # must be initialized before try so finally can always read it
+    result = None
 
-    def _log(msg: str):
+    def _log(msg: str, flush=False):
         """Log to Django logger AND accumulate for DB."""
         logger.info(msg)
         log_lines.append(msg)
+        if flush:
+            _append_logs_to_task(ai_task_id, [msg])
 
     try:
         # ── Cancellation guard ─────────────────────────────────────────────
         ai_task = AIAnalysisTask.objects.get(id=ai_task_id)
         if ai_task.status == "cancelled":
-            _log(f"[{question_slug}] Skipped — task was cancelled.")
+            _log(f"[{question_slug}] Skipped — task was cancelled.", flush=True)
             return "cancelled"
 
         # ── Language / file naming ─────────────────────────────────────────
@@ -312,7 +358,7 @@ def analyze_question_ai_task(
             (student_dir / target_filename).write_text(attempt.source_code or "")
 
         staged_count = len([a for a in id_to_attempt.values()])
-        _log(f"[{question_slug}] Staged {staged_count} submissions.")
+        _log(f"[{question_slug}] Staged {staged_count} submissions.", flush=True)
 
         # ── Write config.json (from DB — no manual re-mapping) ────────────
         config_path = staging_path / "config.json"
@@ -322,9 +368,9 @@ def analyze_question_ai_task(
         output_dir = staging_path / "reports"
         output_dir.mkdir(exist_ok=True)
 
-        ai_timeout = int(os.environ.get("AI_TIMEOUT_SECONDS", "900"))
+        base_timeout = int(os.environ.get("AI_TIMEOUT_SECONDS", "900"))
+        ai_timeout = max(base_timeout, len(attempt_ids) * 60)
 
-        # Memory limit (optional, default off)
         mem_limit_mb = int(os.environ.get("AI_MEMORY_LIMIT_MB", "0"))
 
         def _limit_memory():
@@ -341,42 +387,81 @@ def analyze_question_ai_task(
             "--level", "full",
         ]
 
-        _log(f"[{question_slug}] Running: {' '.join(cmd)}")
+        _log(f"[{question_slug}] Starting pipeline process...", flush=True)
 
-        # Build a clean env for the subprocess:
-        # - PYTORCH_CUDA_ALLOC_CONF: prevents OOM by enabling PyTorch's expandable
-        #   segment allocator — instead of crashing, it reuses fragmented GPU memory.
         subprocess_env = os.environ.copy()
         subprocess_env["PYTORCH_CUDA_ALLOC_CONF"] = os.environ.get(
             "PYTORCH_CUDA_ALLOC_CONF", "expandable_segments:True"
         )
+        subprocess_env["PYTHONUNBUFFERED"] = "1"  # Ensure real-time output
 
         try:
-            result = subprocess.run(
+            # Popen allows us to read output line-by-line while process is running
+            process = subprocess.Popen(
                 cmd,
-                capture_output=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
                 text=True,
-                timeout=ai_timeout,
                 preexec_fn=_limit_memory if mem_limit_mb > 0 else None,
-                cwd=str(Path(main_script).parent),  # run from Autograder_plus root
+                cwd=str(Path(main_script).parent),
                 env=subprocess_env,
+                bufsize=1,  # Line buffered
             )
-        except subprocess.TimeoutExpired:
-            _log(
-                f"[{question_slug}] TIMEOUT — exceeded {ai_timeout}s. "
-                "Increase AI_TIMEOUT_SECONDS or reduce question batch size."
-            )
-            result = None
+
+            import select
+            start_time = time.time()
+            full_stdout = []
+            full_stderr = []
+
+            # We use select for non-blocking read from both stdout and stderr
+            while True:
+                reads = [process.stdout, process.stderr]
+                ret = select.select(reads, [], [], 1.0)
+
+                # Check for timeout manually during the loop
+                if time.time() - start_time > ai_timeout:
+                    process.terminate()
+                    _log(f"[{question_slug}] TIMEOUT — exceeded {ai_timeout}s. Terminating.", flush=True)
+                    break
+
+                for fd in ret[0]:
+                    line = fd.readline()
+                    if line:
+                        clean_line = line.strip()
+                        _log(f"  {clean_line}", flush=True)
+                        if fd == process.stdout:
+                            full_stdout.append(line)
+                        else:
+                            full_stderr.append(line)
+
+                if process.poll() is not None:
+                    # Final read of remaining output
+                    for line in process.stdout:
+                        _log(f"  {line.strip()}", flush=True)
+                        full_stdout.append(line)
+                    for line in process.stderr:
+                        _log(f"  {line.strip()}", flush=True)
+                        full_stderr.append(line)
+                    break
+
+            # Create a mock result object for downstream consistency
+            class MockResult:
+                def __init__(self, returncode, stdout, stderr):
+                    self.returncode = returncode
+                    self.stdout = "".join(stdout)
+                    self.stderr = "".join(stderr)
+            
+            result = MockResult(process.returncode, full_stdout, full_stderr)
+
         except OSError as oserr:
             _log(
                 f"[{question_slug}] OSError launching subprocess: {oserr}. "
                 "If 'bad interpreter' — recreate venv: cd Autograder_plus && "
-                "python3 -m venv newgrade && newgrade/bin/pip install -r requirements.txt"
+                "python3 -m venv newgrade && newgrade/bin/pip install -r requirements.txt",
+                flush=True
             )
             result = None
-
         # ── Parse and persist results ──────────────────────────────────────
-        saved_count = 0
         if result is not None:
             if result.returncode != 0:
                 _log(
@@ -434,25 +519,38 @@ def analyze_question_ai_task(
                     class_slug = slugify(class_obj.name)
                     assignment_slug = slugify(assignment.title)
                     
-                    # Target location: MEDIA_ROOT/ai_reports/<class_slug>/<assignment_slug>/<question_slug>_umap.html
+                    # Persistent location: MEDIA_ROOT/ai_reports/<class_slug>/<assignment_slug>/<question_slug>_umap.html
                     reports_dir = Path(settings.MEDIA_ROOT) / "ai_reports" / class_slug / assignment_slug
                     reports_dir.mkdir(parents=True, exist_ok=True)
                     
-                    html_files = list(output_dir.glob("interactive_embeddings_*.html"))
-                    if html_files:
-                        html_src = html_files[0]
+                    # Search for the interactive output (usually interactive_embeddings_*.html)
+                    html_files = list(output_dir.glob("*.html"))
+                    # Filter for the one that looks like a UMAP/embedding plot
+                    plot_files = [f for f in html_files if "embedding" in f.name or "umap" in f.name or "tsne" in f.name]
+                    
+                    if plot_files:
+                        html_src = plot_files[0]
                         html_dest = reports_dir / f"{question_slug}_umap.html"
+                        _log(f"[{question_slug}] Found UMAP plot at {html_src}. Copying to {html_dest}...")
                         shutil.copy2(html_src, html_dest)
                         
                         relative_url = f"/media/ai_reports/{class_slug}/{assignment_slug}/{html_dest.name}"
-                        _log(f"[{question_slug}] Saved interactive map to {relative_url}")
+                        _log(f"[{question_slug}] Successfully saved interactive map and updated relative_url to {relative_url}")
                         
-                        AssignmentQuestion.objects.filter(
+                        # Update the specific AssignmentQuestion record
+                        updated = AssignmentQuestion.objects.filter(
                             assignment_id=assignment_id,
                             question__slug=question_slug
                         ).update(umap_url=relative_url)
+                        
+                        if updated == 0:
+                            _log(f"[{question_slug}] WARNING: UMAP saved to file but DB update failed (AQ record not found for assignment={assignment_id}, question_slug={question_slug}).")
+                    else:
+                        _log(f"[{question_slug}] No UMAP plot found in {output_dir}. Total HTML files searched: {len(html_files)}. Checked names: {[f.name for f in html_files]}")
+
                 except Exception as eval_exc:
-                    _log(f"[{question_slug}] WARNING: Failed to copy interactive map: {eval_exc}")
+                    _log(f"[{question_slug}] ERROR: Failed to persist interactive map: {eval_exc}")
+                    logger.error(f"[{question_slug}] UMAP Save Error: {eval_exc}", exc_info=True)
 
         if saved_count == 0 and result is not None and result.returncode == 0:
             _log(f"[{question_slug}] WARNING: saved_count=0 despite successful run.")
@@ -506,9 +604,10 @@ def _append_logs_to_task(ai_task_id: str, lines: list[str]):
 
     try:
         # PostgreSQL-specific: concatenate arrays at DB level
+        # Use COALESCE to handle NULL initial log_output
         AIAnalysisTask.objects.filter(id=ai_task_id).update(
             log_output=RawSQL(
-                "log_output || %s::jsonb",
+                "COALESCE(log_output, '[]'::jsonb) || %s::jsonb",
                 [json.dumps(lines)],
             )
         )
@@ -516,7 +615,17 @@ def _append_logs_to_task(ai_task_id: str, lines: list[str]):
         # Fallback for non-Postgres or any error
         try:
             task = AIAnalysisTask.objects.get(id=ai_task_id)
-            task.log_output = (task.log_output or []) + lines
+            new_logs = (task.log_output or []) + lines
+            task.log_output = new_logs[-10000:] # Keep last 10k lines
             task.save(update_fields=["log_output"])
         except Exception as exc:
             logger.warning(f"Could not append logs to task {ai_task_id}: {exc}")
+
+
+# ---------------------------------------------------------------------------
+# Ensure cluster grading tasks are registered with Celery.
+# autodiscover_tasks() only imports each app's tasks.py, so importing the
+# cluster_tasks module here makes its @shared_task functions discoverable.
+# ---------------------------------------------------------------------------
+from . import cluster_tasks  # noqa: E402,F401
+

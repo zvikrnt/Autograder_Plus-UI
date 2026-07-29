@@ -30,8 +30,7 @@ export const authService = {
   // User logout
   logout: () => {
     tokenManager.clearTokens();
-    localStorage.clear(); // Clear all other local storage items
-    sessionStorage.clear(); // Clear session storage
+    sessionStorage.clear(); // Clear session storage (tokens live here now)
     return Promise.resolve({ success: true });
   },
 
@@ -48,6 +47,11 @@ export const authService = {
   // Update user settings
   updateSettings: async (settings) => {
     return await api.put(API_CONFIG.ENDPOINTS.AUTH.SETTINGS, { settings });
+  },
+
+  // Upload user avatar
+  uploadAvatar: async (formData) => {
+    return await api.post(API_CONFIG.ENDPOINTS.AUTH.AVATAR, formData);
   },
 
   // Check if user is authenticated

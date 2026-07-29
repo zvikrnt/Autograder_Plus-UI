@@ -18,10 +18,8 @@ const PointsDisplay = ({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [animatingPoints, setAnimatingPoints] = useState(null);
-  const wsRef = useRef(null);
   const previousPointsRef = useRef(0);
 
-  // Fetch points data
   const fetchPointsData = async () => {
     try {
       setLoading(true);
@@ -32,14 +30,11 @@ const PointsDisplay = ({
 
       if (pointsResponse.success) {
         const newPoints = pointsResponse.data;
-        
-        // Check if points increased for animation
         if (previousPointsRef.current > 0 && newPoints.total_points > previousPointsRef.current) {
           const pointsGained = newPoints.total_points - previousPointsRef.current;
           setAnimatingPoints(pointsGained);
           setTimeout(() => setAnimatingPoints(null), 3000);
         }
-        
         previousPointsRef.current = newPoints.total_points;
         setPointsData(newPoints);
       }
@@ -57,29 +52,17 @@ const PointsDisplay = ({
     }
   };
 
-  // Setup WebSocket connection for real-time updates
   useEffect(() => {
     fetchPointsData();
 
-    // Setup WebSocket for real-time updates using the service
     const connectWebSocket = async () => {
       try {
         if (websocketService.isAuthenticated) {
           await websocketService.connect('game');
-          
-          // Add event listeners for points updates
-          websocketService.addEventListener('game', 'points_update', (data) => {
-            console.log('Points update received:', data);
-            fetchPointsData();
-          });
-          
-          console.log('Points WebSocket connected');
+          websocketService.addEventListener('game', 'points_update', () => fetchPointsData());
         }
-      } catch (error) {
-        if (process.env.NODE_ENV === 'development') {
-          console.warn('Points WebSocket not available, using polling fallback:', error);
-        }
-        // Fallback to polling every 30 seconds
+      } catch (err) {
+        // fallback polling
         const interval = setInterval(fetchPointsData, 30000);
         return () => clearInterval(interval);
       }
@@ -88,18 +71,18 @@ const PointsDisplay = ({
     connectWebSocket();
 
     return () => {
-      // Clean up WebSocket listeners
       websocketService.removeEventListener('game', 'points_update', fetchPointsData);
     };
   }, [showHistory]);
 
+  // Loading / Error states render compact header too
   if (loading) {
     return (
       <Card className={`${className}`}>
         <CardHeader className="pb-3">
           <CardTitle className="text-lg flex items-center gap-2">
             <Zap className="w-5 h-5 text-yellow-500" />
-            Points
+            Total Points
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -123,26 +106,23 @@ const PointsDisplay = ({
         <CardHeader className="pb-3">
           <CardTitle className="text-lg flex items-center gap-2">
             <Zap className="w-5 h-5 text-yellow-500" />
-            Points
+            Total Points
           </CardTitle>
         </CardHeader>
         <CardContent>
           <div className="text-center py-4">
             <p className="text-gray-500 text-sm">{error || 'No points data available'}</p>
-            {error && (
-              <p className="text-xs text-gray-400 mt-2">
-                Backend gamification API not available yet
-              </p>
-            )}
           </div>
         </CardContent>
       </Card>
     );
   }
 
+  // cardClass controls inline display for compact variant
+  const cardClass = `${className} ${compact ? 'inline-flex items-center px-3 py-2' : ''}`;
+
   return (
-    <Card className={`${className} overflow-hidden relative points-display`}>
-      {/* Animated points gain notification */}
+    <Card className={cardClass}>
       <AnimatePresence>
         {animatingPoints && (
           <motion.div
@@ -157,120 +137,118 @@ const PointsDisplay = ({
         )}
       </AnimatePresence>
 
-      <CardHeader className="pb-3">
-        <CardTitle className="text-lg flex items-center justify-between">
+      <CardHeader className={`${compact ? 'p-0' : 'pb-3'}`}>
+        <CardTitle className={`text-lg ${compact ? 'text-sm' : ''} flex items-center justify-between gap-3`}>
           <div className="flex items-center gap-2">
             <Zap className="w-5 h-5 text-yellow-500" />
-            Points
+            <span className={`${compact ? 'font-medium' : ''}`}>Total Points</span>
           </div>
-          <Badge variant="secondary" className="text-xs">
-            <Sparkles className="w-3 h-3 mr-1" />
-            Live
-          </Badge>
+
+          <div className="flex items-center gap-3">
+            {compact && (
+              <span className="text-xl font-bold text-gray-900">{(pointsData?.total_points || 0).toLocaleString()}</span>
+            )}
+            <Badge variant="secondary" className="text-xs">
+              <Sparkles className="w-3 h-3 mr-1" />
+              Live
+            </Badge>
+          </div>
         </CardTitle>
       </CardHeader>
-      
-      <CardContent className="pt-0">
-        {/* Total Points Display */}
-        <motion.div
-          key={pointsData?.total_points || 0}
-          initial={{ scale: 1 }}
-          animate={{ scale: [1, 1.05, 1] }}
-          transition={{ duration: 0.3 }}
-          className="mb-4 points-display-main"
-        >
-          <div className="text-center p-4 bg-gradient-to-br from-yellow-50 to-amber-50 rounded-xl border border-yellow-200">
-            <div className="flex items-center justify-center gap-2 mb-1">
-              <Zap className="w-5 h-5 sm:w-6 sm:h-6 text-yellow-500" />
-              <span className="text-2xl sm:text-3xl font-bold text-gray-900 points-display-total">
-                {(pointsData?.total_points || 0).toLocaleString()}
-              </span>
-            </div>
-            <p className="text-sm text-gray-600 font-medium">Total Points</p>
-          </div>
-        </motion.div>
 
-        {/* Points Breakdown */}
-        {showBreakdown && (
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4 points-display-breakdown">
-            <div className="bg-blue-50 p-3 rounded-lg border border-blue-200">
-              <div className="flex items-center gap-2 mb-1">
-                <Target className="w-4 h-4 text-blue-600" />
-                <span className="text-sm font-semibold text-blue-900">Practice</span>
+      {/* For compact: header already shows number; skip large box */}
+      {!compact && (
+        <CardContent className="pt-0">
+          <motion.div
+            key={pointsData?.total_points || 0}
+            initial={{ scale: 1 }}
+            animate={{ scale: [1, 1.05, 1] }}
+            transition={{ duration: 0.3 }}
+            className="mb-4 points-display-main"
+          >
+            <div className="text-center p-4 bg-gradient-to-br from-yellow-50 to-amber-50 rounded-xl border border-yellow-200">
+              <div className="flex items-center justify-center mb-1">
+                <span className="text-2xl sm:text-3xl font-bold text-gray-900 points-display-total">
+                  {(pointsData?.total_points || 0).toLocaleString()}
+                </span>
               </div>
-              <p className="text-xl font-bold text-blue-900">
-                {pointsData.practice_points?.toLocaleString() || 0}
-              </p>
-              <p className="text-xs text-blue-600">points</p>
             </div>
-            
-            <div className="bg-green-50 p-3 rounded-lg border border-green-200">
-              <div className="flex items-center gap-2 mb-1">
-                <Award className="w-4 h-4 text-green-600" />
-                <span className="text-sm font-semibold text-green-900">Assignments</span>
+          </motion.div>
+
+          {showBreakdown && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4 points-display-breakdown">
+              <div className="bg-blue-50 p-3 rounded-lg border border-blue-200">
+                <div className="flex items-center gap-2 mb-1">
+                  <Target className="w-4 h-4 text-blue-600" />
+                  <span className="text-sm font-semibold text-blue-900">Practice</span>
+                </div>
+                <p className="text-xl font-bold text-blue-900">
+                  {pointsData.practice_points?.toLocaleString() || 0}
+                </p>
+                <p className="text-xs text-blue-600">points</p>
               </div>
-              <p className="text-xl font-bold text-green-900">
-                {pointsData.assignment_points?.toLocaleString() || 0}
-              </p>
-              <p className="text-xs text-green-600">points</p>
+
+              <div className="bg-green-50 p-3 rounded-lg border border-green-200">
+                <div className="flex items-center gap-2 mb-1">
+                  <Award className="w-4 h-4 text-green-600" />
+                  <span className="text-sm font-semibold text-green-900">Assignments</span>
+                </div>
+                <p className="text-xl font-bold text-green-900">
+                  {pointsData.assignment_points?.toLocaleString() || 0}
+                </p>
+                <p className="text-xs text-green-600">points</p>
+              </div>
+            </div>
+          )}
+
+          {showHistory && recentEarnings.length > 0 && (
+            <div>
+              <h4 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
+                <TrendingUp className="w-4 h-4" />
+                Recent Earnings
+              </h4>
+              <div className="space-y-2">
+                {recentEarnings.map((earning, index) => (
+                  <motion.div
+                    key={index}
+                    initial={{ opacity: 0, x: -10 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: index * 0.1 }}
+                    className="flex items-center justify-between p-2 bg-gray-50 rounded-lg"
+                  >
+                    <div className="flex items-center gap-2">
+                      <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                      <span className="text-sm text-gray-700">{earning.source || 'Practice Question'}</span>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <Plus className="w-3 h-3 text-green-600" />
+                      <span className="text-sm font-semibold text-green-600">{earning.points}</span>
+                    </div>
+                  </motion.div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {showHistory && recentEarnings.length === 0 && (
+            <div className="text-center py-4">
+              <Zap className="w-8 h-8 text-gray-300 mx-auto mb-2" />
+              <p className="text-sm text-gray-500">No recent earnings</p>
+              <p className="text-xs text-gray-400">Complete practice questions to earn points!</p>
+            </div>
+          )}
+
+          <div className="mt-4 pt-3 border-t border-gray-100">
+            <div className="flex items-center justify-between text-xs text-gray-500">
+              <span>Last updated: {pointsData?.last_updated ? new Date(pointsData.last_updated).toLocaleTimeString() : 'Never'}</span>
+              <div className="flex items-center gap-1">
+                <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                <span>Live</span>
+              </div>
             </div>
           </div>
-        )}
-
-        {/* Recent Earnings */}
-        {showHistory && recentEarnings.length > 0 && (
-          <div>
-            <h4 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
-              <TrendingUp className="w-4 h-4" />
-              Recent Earnings
-            </h4>
-            <div className="space-y-2">
-              {recentEarnings.map((earning, index) => (
-                <motion.div
-                  key={index}
-                  initial={{ opacity: 0, x: -10 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: index * 0.1 }}
-                  className="flex items-center justify-between p-2 bg-gray-50 rounded-lg"
-                >
-                  <div className="flex items-center gap-2">
-                    <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                    <span className="text-sm text-gray-700">
-                      {earning.source || 'Practice Question'}
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <Plus className="w-3 h-3 text-green-600" />
-                    <span className="text-sm font-semibold text-green-600">
-                      {earning.points}
-                    </span>
-                  </div>
-                </motion.div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Empty State for Recent Earnings */}
-        {showHistory && recentEarnings.length === 0 && (
-          <div className="text-center py-4">
-            <Zap className="w-8 h-8 text-gray-300 mx-auto mb-2" />
-            <p className="text-sm text-gray-500">No recent earnings</p>
-            <p className="text-xs text-gray-400">Complete practice questions to earn points!</p>
-          </div>
-        )}
-
-        {/* Footer */}
-        <div className="mt-4 pt-3 border-t border-gray-100">
-          <div className="flex items-center justify-between text-xs text-gray-500">
-            <span>Last updated: {pointsData?.last_updated ? new Date(pointsData.last_updated).toLocaleTimeString() : 'Never'}</span>
-            <div className="flex items-center gap-1">
-              <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-              <span>Live</span>
-            </div>
-          </div>
-        </div>
-      </CardContent>
+        </CardContent>
+      )}
     </Card>
   );
 };

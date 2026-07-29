@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useParams } from "react-router-dom";
+import { useParams, Link } from "react-router-dom";
 import { Info, StickyNote, Users, Send, MoreVertical, MessageSquare, Paperclip, X, Calendar, Trash2 } from "lucide-react";
 import { Button } from "../../ui/button";
 import { Card } from "../../ui/card";
@@ -330,14 +330,32 @@ export default function StudentStreamTab() {
 
                             {/* Attachments Placeholder */}
                             {isAssignmentLike(post.type) && (
-                                <div onClick={() => window.location.href = `/student/workspace/${post.id}`} className="border border-gray-200 rounded-lg p-3 flex items-center gap-3 bg-gray-50 mb-4 cursor-pointer hover:bg-gray-100">
-                                    <div className="w-10 h-10 bg-white rounded border flex items-center justify-center text-indigo-600 font-bold text-xs uppercase shadow-sm">
-                                        <StickyNote className="w-5 h-5" />
+                                <>
+                                    {/* PREVIOUS CODE (Commented out):
+                                    <div onClick={() => window.location.href = `/student/workspace/${post.id}`} className="border border-gray-200 rounded-lg p-3 flex items-center gap-3 bg-gray-50 mb-4 cursor-pointer hover:bg-gray-100">
+                                        <div className="w-10 h-10 bg-white rounded border flex items-center justify-center text-indigo-600 font-bold text-xs uppercase shadow-sm">
+                                            <StickyNote className="w-5 h-5" />
+                                        </div>
+                                        <span className="text-sm font-medium text-indigo-600 hover:underline">
+                                            View {post.displayType || 'Assignment'}
+                                        </span>
                                     </div>
-                                    <span className="text-sm font-medium text-indigo-600 hover:underline">
-                                        View {post.displayType || 'Assignment'}
-                                    </span>
-                                </div>
+                                    */}
+
+                                    {/* NEW CODE (FIX): Replaced window.location.href with Link component for better performance and consistency */}
+                                    <Link 
+                                        to={`/student/workspace/${post.id}`} 
+                                        className="border border-gray-200 rounded-lg p-3 flex items-center gap-3 bg-gray-50 mb-4 cursor-pointer hover:bg-gray-100 transition-colors block"
+                                        title="Open Assignment"
+                                    >
+                                        <div className="w-10 h-10 bg-white rounded border flex items-center justify-center text-indigo-600 font-bold text-xs uppercase shadow-sm">
+                                            <StickyNote className="w-5 h-5" />
+                                        </div>
+                                        <span className="text-sm font-medium text-indigo-600 hover:underline">
+                                            View {post.displayType || 'Assignment'}
+                                        </span>
+                                    </Link>
+                                </>
                             )}
                         </div>
 

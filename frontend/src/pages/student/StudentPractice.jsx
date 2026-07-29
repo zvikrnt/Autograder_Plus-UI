@@ -9,11 +9,12 @@ import {
     Home, ArrowLeft, Flame, Loader2, Brain
 } from "lucide-react";
 import {
-    BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell
+    BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LabelList
 } from "recharts";
 
 import PracticeQuestionsList from "../../components/features/student/PracticeQuestionsList";
 import { PointsDisplay, AchievementBadges, ErrorBoundary } from "../../components/features/gamification";
+import StudentLayout from "../../components/layout/StudentLayout";
 import { practiceService } from "../../services/practiceService";
 import { gamificationService } from "../../services/gamificationService";
 
@@ -105,12 +106,28 @@ export default function StudentPractice() {
             value: loadingStats ? "—" : `${stats?.currentStreak ?? 0}d`,
             color: "text-orange-500",
         },
+        {
+            icon: Clock,
+            label: "Time Spent",
+            value: loadingStats ? "—" : stats?.timePracticedMins != null ? formatTime(stats.timePracticedMins) : "0m",
+            color: "text-blue-500",
+        },
     ];
 
+    const categoryData = stats?.categoryBreakdown || [];
+    const sortedCategoryData = [...categoryData].sort((a, b) => b.rate - a.rate);
+    const totalAttempted = categoryData.reduce((sum, item) => sum + (item.attempted || 0), 0);
+    const totalCompleted = categoryData.reduce((sum, item) => sum + (item.completed || 0), 0);
+    const overallCompletionRate = totalAttempted > 0 ? Math.round((totalCompleted / totalAttempted) * 100) : 0;
+    const strongestCategory = sortedCategoryData[0]?.category || "—";
+    const avgTimePerSolve = (stats?.totalCompleted ?? 0) > 0
+        ? Math.max(1, Math.round((stats?.timePracticedMins ?? 0) / stats.totalCompleted))
+        : 0;
+
     return (
-        <div className="min-h-screen bg-gray-50">
+        <StudentLayout>
             {/* Header */}
-            <div className="bg-white border-b border-gray-200 shadow-sm">
+            <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 shadow-sm">
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                     <div className="py-4 sm:py-6">
                         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
@@ -119,7 +136,7 @@ export default function StudentPractice() {
                                     onClick={() => navigate('/student/dashboard')}
                                     variant="ghost"
                                     size="sm"
-                                    className="flex items-center gap-2 text-gray-600 hover:text-gray-900"
+                                    className="flex items-center gap-2 text-gray-600 hover:text-gray-900 dark:hover:text-white"
                                 >
                                     <ArrowLeft className="w-4 h-4" />
                                     <span className="hidden sm:inline">Back to Dashboard</span>
@@ -159,18 +176,18 @@ export default function StudentPractice() {
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
                 <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
                     <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-                        <TabsList className="grid w-full grid-cols-3 sm:w-[400px] bg-gray-100 p-1 rounded-xl">
-                            <TabsTrigger value="questions" className="flex items-center gap-2 rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-sm text-xs sm:text-sm">
+                        <TabsList className="grid w-full grid-cols-3 sm:w-[400px] bg-gray-100 dark:bg-gray-800 p-1 rounded-xl">
+                            <TabsTrigger value="questions" className="flex items-center gap-2 rounded-lg data-[state=active]:bg-white data-[state=active]:dark:bg-gray-800 data-[state=active]:shadow-sm text-xs sm:text-sm">
                                 <BookOpen className="w-4 h-4" />
                                 <span className="hidden sm:inline">Questions</span>
                                 <span className="sm:hidden">Q</span>
                             </TabsTrigger>
-                            <TabsTrigger value="progress" className="flex items-center gap-2 rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-sm text-xs sm:text-sm">
+                            <TabsTrigger value="progress" className="flex items-center gap-2 rounded-lg data-[state=active]:bg-white data-[state=active]:dark:bg-gray-800 data-[state=active]:shadow-sm text-xs sm:text-sm">
                                 <TrendingUp className="w-4 h-4" />
                                 <span className="hidden sm:inline">Progress</span>
                                 <span className="sm:hidden">P</span>
                             </TabsTrigger>
-                            <TabsTrigger value="achievements" className="flex items-center gap-2 rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-sm text-xs sm:text-sm">
+                            <TabsTrigger value="achievements" className="flex items-center gap-2 rounded-lg data-[state=active]:bg-white data-[state=active]:dark:bg-gray-800 data-[state=active]:shadow-sm text-xs sm:text-sm">
                                 <Trophy className="w-4 h-4" />
                                 <span className="hidden sm:inline">Achievements</span>
                                 <span className="sm:hidden">A</span>
@@ -196,115 +213,72 @@ export default function StudentPractice() {
 
                     {/* Progress Tab */}
                     <TabsContent value="progress" className="space-y-6">
-                        {/* Hero summary */}
-                        <Card className="bg-gradient-to-br from-indigo-50 to-blue-50 border-indigo-200">
-                            <CardHeader>
-                                <CardTitle className="flex items-center gap-2 text-indigo-900">
-                                    <TrendingUp className="w-5 h-5" /> Your Progress Journey
-                                </CardTitle>
-                            </CardHeader>
-                            <CardContent>
-                                {loadingStats ? (
-                                    <div className="flex justify-center py-6">
-                                        <Loader2 className="w-6 h-6 animate-spin text-indigo-500" />
-                                    </div>
-                                ) : (
-                                    <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-                                        <div className="text-center">
-                                            <div className="text-4xl font-extrabold text-indigo-700">
-                                                {stats?.totalCompleted ?? 0}
-                                            </div>
-                                            <div className="text-sm text-indigo-600 mt-1">Questions Solved</div>
-                                            {stats?.weekDelta !== 0 && (
-                                                <div className={`text-xs mt-1 ${stats.weekDelta > 0 ? "text-green-600" : "text-red-500"}`}>
-                                                    {stats.weekDelta > 0 ? `+${stats.weekDelta}` : stats.weekDelta} vs last week
-                                                </div>
-                                            )}
-                                        </div>
-                                        <div className="text-center">
-                                            <div className="text-4xl font-extrabold text-orange-600">
-                                                {stats?.currentStreak ?? 0}
-                                            </div>
-                                            <div className="text-sm text-orange-500 mt-1">Day Streak 🔥</div>
-                                            <div className="text-xs text-gray-400 mt-1">Best: {stats?.longestStreak ?? 0} days</div>
-                                        </div>
-                                        <div className="text-center">
-                                            <div className="text-4xl font-extrabold text-purple-700">
-                                                {stats?.timePracticedMins != null ? formatTime(stats.timePracticedMins) : "0m"}
-                                            </div>
-                                            <div className="text-sm text-purple-600 mt-1">Time Practiced</div>
-                                        </div>
-                                        <div className="text-center">
-                                            <div className="text-4xl font-extrabold text-yellow-600">
-                                                ⚡ {(stats?.totalPoints ?? 0).toLocaleString()}
-                                            </div>
-                                            <div className="text-sm text-yellow-600 mt-1">Total Points</div>
-                                            <div className="text-xs text-gray-400 mt-1">Practice: {(stats?.practicePoints ?? 0).toLocaleString()}</div>
-                                        </div>
-                                    </div>
-                                )}
-                            </CardContent>
-                        </Card>
-
-                        {/* Stat cards */}
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                            <Card>
-                                <CardHeader className="flex flex-row items-center justify-between pb-2">
-                                    <CardTitle className="text-sm font-medium">Questions Completed</CardTitle>
-                                    <CheckCircle2 className="h-4 w-4 text-green-600" />
-                                </CardHeader>
-                                <CardContent>
-                                    <div className="text-2xl font-bold">{loadingStats ? "—" : stats?.totalCompleted ?? 0}</div>
-                                    <p className="text-xs text-muted-foreground">
-                                        {stats?.weekDelta > 0 ? `+${stats.weekDelta} from last week` : "Keep practicing!"}
-                                    </p>
-                                </CardContent>
-                            </Card>
-
-                            <Card>
-                                <CardHeader className="flex flex-row items-center justify-between pb-2">
-                                    <CardTitle className="text-sm font-medium">Current Streak</CardTitle>
-                                    <Flame className="h-4 w-4 text-orange-500" />
-                                </CardHeader>
-                                <CardContent>
-                                    <div className="text-2xl font-bold">{loadingStats ? "—" : stats?.currentStreak ?? 0}</div>
-                                    <p className="text-xs text-muted-foreground">days in a row</p>
-                                </CardContent>
-                            </Card>
-
-                            <Card>
-                                <CardHeader className="flex flex-row items-center justify-between pb-2">
-                                    <CardTitle className="text-sm font-medium">Time Practiced</CardTitle>
-                                    <Clock className="h-4 w-4 text-blue-600" />
-                                </CardHeader>
-                                <CardContent>
-                                    <div className="text-2xl font-bold">
-                                        {loadingStats ? "—" : stats?.timePracticedMins != null ? formatTime(stats.timePracticedMins) : "0m"}
-                                    </div>
-                                    <p className="text-xs text-muted-foreground">total practice time</p>
-                                </CardContent>
-                            </Card>
-                        </div>
-
                         {/* Category breakdown chart */}
                         {!loadingStats && stats?.categoryBreakdown?.length > 0 ? (
                             <Card>
                                 <CardHeader>
                                     <CardTitle className="flex items-center gap-2">
-                                        <Brain className="w-5 h-5" /> Progress by Category
+                                        <Brain className="w-5 h-5" /> Category Progress
                                     </CardTitle>
                                 </CardHeader>
                                 <CardContent>
-                                    <ResponsiveContainer width="100%" height={260}>
-                                        <BarChart data={stats.categoryBreakdown} layout="vertical" margin={{ left: 20 }}>
-                                            <CartesianGrid strokeDasharray="3 3" />
-                                            <XAxis type="number" domain={[0, 100]} tickFormatter={v => `${v}%`} />
-                                            <YAxis type="category" dataKey="category" tick={{ fontSize: 12 }} width={110} />
-                                            <Tooltip formatter={(v) => [`${v}%`, "Completion Rate"]} />
-                                            <Bar dataKey="rate" name="Completion Rate" radius={[0, 4, 4, 0]}>
-                                                {stats.categoryBreakdown.map((entry, i) => (
-                                                    <Cell key={i} fill={entry.color} />
-                                                ))}
+                                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-5">
+                                        <div className="rounded-lg border border-indigo-100 bg-indigo-50 px-3 py-2">
+                                            <div className="text-[11px] uppercase tracking-wide text-indigo-700 font-semibold">Overall Completion</div>
+                                            <div className="text-lg font-bold text-indigo-900">{overallCompletionRate}%</div>
+                                        </div>
+                                        <div className="rounded-lg border border-emerald-100 bg-emerald-50 px-3 py-2">
+                                            <div className="text-[11px] uppercase tracking-wide text-emerald-700 font-semibold">Avg Time / Solve</div>
+                                            <div className="text-lg font-bold text-emerald-900">{avgTimePerSolve}m</div>
+                                        </div>
+                                        <div className="rounded-lg border border-amber-100 bg-amber-50 px-3 py-2">
+                                            <div className="text-[11px] uppercase tracking-wide text-amber-700 font-semibold">Strongest Category</div>
+                                            <div className="text-lg font-bold text-amber-900 truncate">{strongestCategory}</div>
+                                        </div>
+                                    </div>
+
+                                    <ResponsiveContainer width="100%" height={300}>
+                                        <BarChart data={sortedCategoryData} layout="vertical" margin={{ top: 8, right: 36, left: 8, bottom: 8 }}>
+                                            <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#eef2ff" />
+                                            <XAxis
+                                                type="number"
+                                                domain={[0, 100]}
+                                                tickFormatter={(v) => `${v}%`}
+                                                tick={{ fontSize: 11, fill: "#6b7280" }}
+                                                axisLine={false}
+                                                tickLine={false}
+                                            />
+                                            <YAxis
+                                                type="category"
+                                                dataKey="category"
+                                                tick={{ fontSize: 12, fill: "#374151" }}
+                                                axisLine={false}
+                                                tickLine={false}
+                                                width={120}
+                                            />
+                                            <Tooltip
+                                                contentStyle={{ borderRadius: 10, borderColor: "#e5e7eb" }}
+                                                formatter={(value, _name, item) => {
+                                                    const row = item?.payload || {};
+                                                    return [
+                                                        `${value}% (Solved ${row.completed}/${row.attempted})`,
+                                                        "Completion",
+                                                    ];
+                                                }}
+                                            />
+                                            <Bar
+                                                dataKey="rate"
+                                                name="Completion Rate"
+                                                fill="#4f46e5"
+                                                radius={[0, 6, 6, 0]}
+                                                background={{ fill: "#eef2ff", radius: 6 }}
+                                            >
+                                                <LabelList
+                                                    dataKey="rate"
+                                                    position="right"
+                                                    formatter={(v) => `${v}%`}
+                                                    style={{ fill: "#374151", fontSize: 11, fontWeight: 600 }}
+                                                />
                                             </Bar>
                                         </BarChart>
                                     </ResponsiveContainer>
@@ -342,6 +316,6 @@ export default function StudentPractice() {
                     </TabsContent>
                 </Tabs>
             </div>
-        </div>
+        </StudentLayout>
     );
 }

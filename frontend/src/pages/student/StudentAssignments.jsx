@@ -29,6 +29,7 @@ import { Badge } from "../../components/ui/badge";
 
 import { assignmentService } from "../../services/assignmentService";
 import { classService } from "../../services/classService";
+import { submissionService } from "../../services/submissionService";
 
 export default function StudentAssignments() {
     const navigate = useNavigate();
@@ -41,22 +42,41 @@ export default function StudentAssignments() {
     const [showStartConfirmation, setShowStartConfirmation] = useState(false);
     const [selectedAssignment, setSelectedAssignment] = useState(null);
     const [showFullDescription, setShowFullDescription] = useState(false);
+    const [gradebookStatusMap, setGradebookStatusMap] = useState({});
 
     useEffect(() => {
         const fetchData = async () => {
             try {
                 setLoading(true);
                 // Parallel fetch
-                const [assignRes, classRes] = await Promise.all([
+                const [assignRes, classRes, gradebookRes] = await Promise.all([
                     assignmentService.getAssignments(),
-                    classService.getClasses()
+                    classService.getClasses(),
+                    submissionService.getGradebookEntries()
                 ]);
 
                 const assignData = Array.isArray(assignRes.data) ? assignRes.data : (assignRes.data.results || []);
                 const classData = Array.isArray(classRes.data) ? classRes.data : (classRes.data.results || []);
+                const gradebookRows = Array.isArray(gradebookRes.data) ? gradebookRes.data : (gradebookRes.data?.results || []);
+                const statusByAssignment = {};
+                gradebookRows.forEach((entry) => {
+                    if (entry?.content_item) {
+                        statusByAssignment[String(entry.content_item)] = entry.status;
+                    }
+                });
 
-                setAssignments(assignData);
+                const hydratedAssignments = assignData.map((item) => {
+                    const gradeStatus = statusByAssignment[String(item.id)];
+                    return {
+                        ...item,
+                        is_graded: gradeStatus === "graded",
+                        is_submitted: gradeStatus === "submitted" || gradeStatus === "graded",
+                    };
+                });
+
+                setAssignments(hydratedAssignments);
                 setClasses(classData);
+                setGradebookStatusMap(statusByAssignment);
             } catch (err) {
                 console.error("Failed to load data:", err);
             } finally {
@@ -97,7 +117,7 @@ export default function StudentAssignments() {
         const diffTime = date - now;
         const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
 
-        if (diffDays < 0) return { text: `Ended ${Math.abs(diffDays)} days ago`, color: "text-gray-500 bg-gray-100 border-gray-200" };
+        if (diffDays < 0) return { text: `Ended ${Math.abs(diffDays)} days ago`, color: "text-gray-500 bg-gray-100 dark:bg-gray-800 border-gray-200 dark:border-gray-700" };
         if (diffDays === 0) return { text: "Due today", color: "text-amber-700 bg-amber-50 border-amber-200" };
         if (diffDays === 1) return { text: "Due tomorrow", color: "text-emerald-700 bg-emerald-50 border-emerald-200" };
         return { text: `Due in ${diffDays} days`, color: "text-indigo-700 bg-indigo-50 border-indigo-200" };
@@ -169,7 +189,7 @@ export default function StudentAssignments() {
                 {/* Filters & Tabs */}
                 <div className="flex flex-col gap-6">
                     {/* Tabs */}
-                    <div className="flex items-center space-x-1 rounded-xl bg-gray-100 p-1 w-fit">
+                    <div className="flex items-center space-x-1 rounded-xl bg-gray-100 dark:bg-gray-800 p-1 w-fit">
                         {['active', 'past'].map((tab) => (
                             <button
                                 key={tab}
@@ -177,15 +197,15 @@ export default function StudentAssignments() {
                                 className={`
                                     flex items-center gap-2 px-6 py-2.5 rounded-lg text-sm font-semibold transition-all duration-200
                                     ${activeTab === tab
-                                        ? "bg-white text-indigo-600 shadow-sm ring-1 ring-black/5"
-                                        : "text-gray-500 hover:text-gray-900 hover:bg-gray-200/50"
+                                        ? "bg-white dark:bg-gray-800 text-indigo-600 shadow-sm ring-1 ring-black/5"
+                                        : "text-gray-500 hover:text-gray-900 dark:hover:text-white hover:bg-gray-200/50 dark:hover:bg-gray-600/50"
                                     }
                                 `}
                             >
                                 <span className="capitalize">{tab}</span>
                                 <span className={`
                                     px-2 py-0.5 rounded-md text-[10px] font-bold
-                                    ${activeTab === tab ? "bg-indigo-50 text-indigo-700" : "bg-gray-200 text-gray-600"}
+                                    ${activeTab === tab ? "bg-indigo-50 text-indigo-700" : "bg-gray-200 dark:bg-gray-700 text-gray-600"}
                                 `}>
                                     {counts[tab] || 0}
                                 </span>
@@ -199,14 +219,14 @@ export default function StudentAssignments() {
                             <Search className="absolute left-3 top-2.5 h-4 w-4 text-gray-400" />
                             <Input
                                 placeholder="Search assignments..."
-                                className="pl-9 bg-white"
+                                className="pl-9 bg-white dark:bg-gray-800"
                                 value={searchTerm}
                                 onChange={(e) => setSearchTerm(e.target.value)}
                             />
                         </div>
                         <div className="w-48">
                             <Select value={classFilter} onValueChange={setClassFilter}>
-                                <SelectTrigger className="bg-white">
+                                <SelectTrigger className="bg-white dark:bg-gray-800">
                                     <SelectValue placeholder="All Classes" />
                                 </SelectTrigger>
                                 <SelectContent>
@@ -226,8 +246,8 @@ export default function StudentAssignments() {
                         <Loader2 className="w-8 h-8 animate-spin text-indigo-600" />
                     </div>
                 ) : filteredAssignments.length === 0 ? (
-                    <div className="text-center py-20 bg-gray-50 rounded-2xl border-2 border-dashed border-gray-200">
-                        <div className="p-4 bg-white rounded-full w-fit mx-auto mb-4 shadow-sm">
+                    <div className="text-center py-20 bg-gray-50 dark:bg-gray-900 rounded-2xl border-2 border-dashed border-gray-200 dark:border-gray-700">
+                        <div className="p-4 bg-white dark:bg-gray-800 rounded-full w-fit mx-auto mb-4 shadow-sm">
                             <Filter className="w-6 h-6 text-gray-400" />
                         </div>
                         <h3 className="text-lg font-semibold text-gray-900">No {activeTab} assignments</h3>
@@ -303,6 +323,19 @@ export default function StudentAssignments() {
 
                                                 {/* Action */}
                                                 <div className="flex items-center gap-4">
+                                                    {(gradebookStatusMap[String(assignment.id)] === "graded" || assignment.is_graded) && (
+                                                        <Button
+                                                            variant="outline"
+                                                            size="sm"
+                                                            onClick={(e) => {
+                                                                e.preventDefault();
+                                                                e.stopPropagation();
+                                                                navigate(`/student/assignment/${assignment.id}/report`);
+                                                            }}
+                                                        >
+                                                            View Report
+                                                        </Button>
+                                                    )}
                                                     <Button variant="ghost" size="icon" className="text-gray-400 group-hover:text-indigo-600 group-hover:bg-indigo-50">
                                                         <ArrowRight className="w-5 h-5" />
                                                     </Button>
@@ -330,7 +363,7 @@ export default function StudentAssignments() {
                             initial={{ scale: 0.8, opacity: 0 }}
                             animate={{ scale: 1, opacity: 1 }}
                             exit={{ scale: 0.8, opacity: 0 }}
-                            className="bg-white p-8 rounded-2xl shadow-2xl text-center max-w-md w-full mx-4"
+                            className="bg-white dark:bg-gray-800 p-8 rounded-2xl shadow-2xl text-center max-w-md w-full mx-4"
                         >
                             <div className={`w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 ${selectedAssignment.is_submitted ? "bg-green-100" : "bg-indigo-100"
                                 }`}>

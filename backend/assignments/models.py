@@ -21,6 +21,8 @@ class ContentItem(models.Model):
     description = models.TextField(blank=True)
     is_published = models.BooleanField(default=False)
     due_date = models.DateTimeField(null=True, blank=True)
+    start_time = models.DateTimeField(null=True, blank=True)
+    duration_minutes = models.IntegerField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     

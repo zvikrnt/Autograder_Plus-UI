@@ -17,11 +17,14 @@ import {
     Clock,
     CheckCircle2,
     MessageSquare,
-    Brain
+    Brain,
+    HelpCircle
 } from "lucide-react";
+import GuideModal from "../GuideModal";
 import { cn } from "../../lib/utils";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
+import { Avatar, AvatarFallback, AvatarImage } from "../ui/avatar";
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator } from "../ui/dropdown-menu";
 import { useAuth } from "../../contexts/AuthContext";
 
@@ -67,6 +70,7 @@ export default function TeacherAssistantLayout({ children }) {
 
     const [notifications, setNotifications] = useState([]); // Initialize state
     const [loading, setLoading] = useState(true);
+    const [showGuide, setShowGuide] = useState(false);
 
     useEffect(() => {
         const fetchNotifications = async () => {
@@ -108,10 +112,10 @@ export default function TeacherAssistantLayout({ children }) {
     };
 
     return (
-        <div className="min-h-screen bg-gray-50 flex">
+        <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex">
             {/* Sidebar */}
-            <aside className="w-64 bg-white border-r border-gray-200 fixed h-full z-30 hidden md:flex flex-col">
-                <div className="h-16 flex items-center px-6 border-b border-gray-100">
+            <aside className="w-64 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 fixed h-full z-30 hidden md:flex flex-col">
+                <div className="h-16 flex items-center px-6 border-b border-gray-100 dark:border-gray-800">
                     <GraduationCap className="w-7 h-7 text-indigo-600 mr-2" />
                     <span className="text-xl font-bold text-gray-900 tracking-tight">Autograder +</span>
                 </div>
@@ -163,10 +167,19 @@ export default function TeacherAssistantLayout({ children }) {
                     </SidebarSection>
                 </div>
 
-                <div className="p-4 border-t border-gray-100">
+                <div className="p-4 border-t border-gray-100 dark:border-gray-800 space-y-2">
+                    <button
+                        onClick={() => setShowGuide(true)}
+                        className="flex items-center gap-3 px-3 py-2 w-full text-sm font-medium text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-950 rounded-md transition-colors"
+                    >
+                        <HelpCircle className="w-5 h-5" />
+                        GUIDE
+                    </button>
+                    {showGuide && <GuideModal onClose={() => setShowGuide(false)} />}
+
                     <button
                         onClick={handleLogout}
-                        className="flex items-center gap-3 px-3 py-2 w-full text-sm font-medium text-red-600 hover:bg-red-50 rounded-md transition-colors"
+                        className="flex items-center gap-3 px-3 py-2 w-full text-sm font-medium text-red-600 hover:bg-red-50 dark:hover:bg-red-950 rounded-md transition-colors"
                     >
                         <LogOut className="w-5 h-5" />
                         Sign Out
@@ -178,7 +191,7 @@ export default function TeacherAssistantLayout({ children }) {
             <div className="flex-1 md:ml-64 flex flex-col min-h-screen">
                 {/* Topbar */}
                 {/* Topbar */}
-                <header className="h-16 bg-white border-b border-gray-200 flex items-center justify-between px-4 sm:px-8 sticky top-0 z-20">
+                <header className="h-16 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between px-4 sm:px-8 sticky top-0 z-20">
                     <div className="flex items-center gap-4 flex-1">
                         {/* Mobile Overlay Toggle */}
                         <Button variant="ghost" size="icon" className="md:hidden">
@@ -212,7 +225,7 @@ export default function TeacherAssistantLayout({ children }) {
                             <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-400" />
                             <Input
                                 placeholder="Search students, classes, or assignments..."
-                                className="pl-9 bg-gray-50 border-gray-200 focus:bg-white transition-colors"
+                                className="pl-9 bg-gray-50 dark:bg-gray-900 border-gray-200 dark:border-gray-700 focus:bg-white transition-colors"
                             />
                         </div>
                         <Button variant="ghost" size="icon" className="md:hidden text-gray-500">
@@ -224,11 +237,11 @@ export default function TeacherAssistantLayout({ children }) {
                                 <DropdownMenuTrigger asChild>
                                     <Button variant="ghost" size="icon" className="text-gray-500 hover:text-gray-900 relative">
                                         <Bell className="w-5 h-5" />
-                                        <span className="absolute top-2.5 right-2.5 w-2 h-2 bg-red-500 rounded-full border-2 border-white" />
+                                        <span className="absolute top-2.5 right-2.5 w-2 h-2 bg-red-500 rounded-full border-2 border-white dark:border-gray-700" />
                                     </Button>
                                 </DropdownMenuTrigger>
-                                <DropdownMenuContent align="end" className="w-80 p-0 bg-white">
-                                    <div className="p-4 border-b border-gray-100 flex items-center justify-between">
+                                <DropdownMenuContent align="end" className="w-80 p-0 bg-white dark:bg-gray-800">
+                                    <div className="p-4 border-b border-gray-100 dark:border-gray-800 flex items-center justify-between">
                                         <h4 className="font-semibold text-gray-900">Notifications</h4>
                                         <span
                                             className="text-xs text-indigo-600 hover:text-indigo-700 cursor-pointer"
@@ -250,8 +263,10 @@ export default function TeacherAssistantLayout({ children }) {
                                                     className="p-4 cursor-pointer focus:bg-gray-50 border-b border-gray-50 last:border-0 items-start gap-3"
                                                     onClick={(e) => {
                                                         if (!notif.is_read) {
-                                                            e.preventDefault();
                                                             handleMarkAsRead(notif.id);
+                                                        }
+                                                        if (notif.reference_link) {
+                                                            navigate(notif.reference_link);
                                                         }
                                                     }}
                                                 >
@@ -280,21 +295,26 @@ export default function TeacherAssistantLayout({ children }) {
                                             ))
                                         )}
                                     </div>
-                                    <div className="p-3 border-t border-gray-100 bg-gray-50 text-center">
-                                        <Button variant="link" className="text-xs h-auto p-0 text-gray-500">View all notifications</Button>
+                                    <div className="p-3 border-t border-gray-100 dark:border-gray-800 bg-gray-50 dark:bg-gray-900 text-center">
+                                        <span className="text-xs h-auto p-0 text-gray-500">Total: {notifications.length} notifications</span>
                                     </div>
                                 </DropdownMenuContent>
                             </DropdownMenu>
                         </div>
 
-                        <div className="h-6 w-px bg-gray-200 mx-1 hidden sm:block" />
+                        <div className="h-6 w-px bg-gray-200 dark:bg-gray-700 mx-1 hidden sm:block" />
 
                         <DropdownMenu>
                             <DropdownMenuTrigger asChild>
-                                <Button variant="ghost" className="flex items-center gap-2 pl-2 pr-1 rounded-full hover:bg-gray-100 ring-offset-2 focus-visible:ring-2">
-                                    <div className="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-700 font-bold border border-indigo-200">
-                                        {user?.first_name?.[0]}{user?.last_name?.[0]}
-                                    </div>
+                                <Button variant="ghost" className="flex items-center gap-2 pl-2 pr-1 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 ring-offset-2 focus-visible:ring-2">
+                                    <Avatar className="w-8 h-8 border-2 border-indigo-200">
+                                        {user?.avatar_url && (
+                                            <AvatarImage src={`${user.avatar_url.startsWith('http') ? user.avatar_url : `${window.location.origin}${user.avatar_url.startsWith('/') ? '' : '/'}${user.avatar_url}`}?_t=${Date.now()}`} alt="" />
+                                        )}
+                                        <AvatarFallback className="text-xs font-bold bg-indigo-100 text-indigo-700">
+                                            {user?.first_name?.[0]}{user?.last_name?.[0]}
+                                        </AvatarFallback>
+                                    </Avatar>
                                     <span className="text-sm font-medium text-gray-700 hidden sm:block">
                                         {user?.first_name} {user?.last_name}
                                     </span>
@@ -304,8 +324,8 @@ export default function TeacherAssistantLayout({ children }) {
                             <DropdownMenuContent align="end" className="w-56">
                                 <DropdownMenuLabel>My Account</DropdownMenuLabel>
                                 <DropdownMenuSeparator />
-                                <DropdownMenuItem className="cursor-pointer">
-                                    Profile
+                                <DropdownMenuItem asChild className="cursor-pointer">
+                                    <Link to="/teacher/profile">Profile</Link>
                                 </DropdownMenuItem>
                                 <DropdownMenuItem asChild className="cursor-pointer">
                                     <Link to="/teacher/settings">Settings</Link>

@@ -588,7 +588,8 @@ def update_gradebook(student, assignment):
     total_questions = aqs.count()
     
     sum_question_percentages = 0
-    questions_counted = 0
+    total_assignment_tests = 0
+    total_passed_tests = 0
     total_points_earned = 0
     
     for aq in aqs:
@@ -598,30 +599,23 @@ def update_gradebook(student, assignment):
             assignment_question=aq
         ).order_by('-created_at').first()
         
-        # Determine score for this question (0-100 scale)
-        question_score = 0
-        
-        # Get Max Points for this question
-        max_points = aq.custom_points if aq.custom_points is not None else 10 
-        if max_points <= 0: max_points = 10
-
         test_cases = aq.question.test_cases or []
         num_tests = len(test_cases)
+        total_assignment_tests += num_tests
         
         if latest:
+            passed = 0
             if latest.manual_score is not None:
-                # Manual override
-                question_score = (latest.manual_score / max_points) * 100
-                if question_score > 100: question_score = 100
+                # Recover test pass count from the normalized percentage
+                passed = max(0, min(num_tests, round((latest.manual_score / 100.0) * num_tests)))
             elif num_tests > 0:
                 # Auto-calculated based on tests
                 results = latest.test_results.all()
                 if results:
                      passed = results.filter(status='pass').count()
                      passed = min(passed, num_tests)
-                     question_score = (passed / num_tests) * 100
-            else:
-                question_score = 0
+                     
+            total_passed_tests += passed
                 
             # Calculate points earned for this question
             try:
@@ -642,16 +636,11 @@ def update_gradebook(student, assignment):
                     total_points_earned += question_points
             except Exception as e:
                 logger.error(f"Error calculating points for gradebook: {e}")
-        else:
-            question_score = 0
-        
-        sum_question_percentages += question_score
-        questions_counted += 1
 
-    # Final Calculation: Average of Question Scores
+    # Final Calculation: Total Passed Testcases / Total Expected Testcases
     final_assignment_score = 0
-    if total_questions > 0:
-        final_assignment_score = sum_question_percentages / total_questions
+    if total_assignment_tests > 0:
+        final_assignment_score = (total_passed_tests / total_assignment_tests) * 100
             
     # Update Gradebook
     content_item = ContentItem.objects.get(id=assignment.id)
