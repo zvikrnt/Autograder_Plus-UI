@@ -14,6 +14,11 @@ x-backend-volumes: &backend-volumes
     - /var/run/docker.sock:/var/run/docker.sock
     - backend_media:/app/media
     - assignments_data:/app/assignments_data
+    # Admin-portal ZIP backups (adminportal.services.BACKUP_DIR). Without a
+    # named volume here, backups written to the container's writable layer
+    # would be destroyed on every redeploy. celery-worker writes them,
+    # backend serves the download — both need it; celery-ai-worker doesn't.
+    - backups:/app/backups
 
 services:
   db:
@@ -178,3 +183,4 @@ volumes:
   backend_media:
   assignments_data:
   celery_beat_schedule:
+  backups:

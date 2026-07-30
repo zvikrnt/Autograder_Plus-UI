@@ -72,6 +72,8 @@ const LoginForm = () => {
       let redirectPath;
       if (from) {
         redirectPath = from;
+      } else if (result.user.role === 'admin') {
+        redirectPath = '/admin';
       } else {
         redirectPath = result.user.role === 'student'
           ? '/student/dashboard'

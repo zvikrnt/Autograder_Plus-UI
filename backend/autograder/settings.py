@@ -53,9 +53,10 @@ INSTALLED_APPS = [
     # Third party apps
     'rest_framework',
     'rest_framework_simplejwt',
+    'rest_framework_simplejwt.token_blacklist',
     'corsheaders',
     'channels',
-    
+
     # Local apps
     'users',
     'classes',
@@ -66,6 +67,7 @@ INSTALLED_APPS = [
     'gamification',
     'adaptive',
     'blackboard',
+    'adminportal',
     'anymail',
     'storages',
 ]

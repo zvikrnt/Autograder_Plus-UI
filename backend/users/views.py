@@ -7,6 +7,7 @@ from rest_framework_simplejwt.tokens import RefreshToken
 from django.contrib.auth import authenticate
 from .models import User
 from .serializers import UserSerializer, UserRegistrationSerializer, UserSettingsSerializer
+from core.permissions import IsAdmin
 from django.core.mail import send_mail
 from django.contrib.auth.tokens import default_token_generator
 from django.utils.http import urlsafe_base64_encode, urlsafe_base64_decode
@@ -30,55 +31,27 @@ def current_user(request):
 @permission_classes([AllowAny])
 def simple_login(request):
     """Simple login function-based view"""
-    print(f"=== SIMPLE LOGIN CALLED ===")
-    print(f"Method: {request.method}")
-    print(f"Headers: {dict(request.headers)}")
-    print(f"Content-Type: {request.content_type}")
-    print(f"Raw body: {request.body}")
-    print(f"Request data: {request.data}")
-    
     if request.method == 'GET':
         return Response({'message': 'Simple login endpoint is working'})
-    
+
     username = request.data.get('username')
     password = request.data.get('password')
-    
-    print(f"Extracted - Username: '{username}', Password: '{password}'")
-    
+
     if not username or not password:
-        print("Missing username or password")
         return Response(
             {'success': False, 'message': 'Username and password are required'},
             status=status.HTTP_400_BAD_REQUEST
         )
-    
-    # Check if input is email
-    if '@' in username:
-        try:
-            from .models import User
-            user_obj = User.objects.filter(email=username).first()
-            if user_obj:
-                username = user_obj.username
-                print(f"Resolved email to username: {username}")
-        except Exception as e:
-            print(f"Error resolving email: {e}")
 
-    # Let's also check if the user exists
-    try:
-        from .models import User
-        user_exists = User.objects.filter(username=username).first()
-        print(f"User exists in database: {user_exists}")
-        if user_exists:
-            print(f"User active: {user_exists.is_active}")
-            print(f"User role: {user_exists.role}")
-    except Exception as e:
-        print(f"Error checking user: {e}")
-    
+    # Allow logging in with email instead of username.
+    if '@' in username:
+        user_obj = User.objects.filter(email=username).first()
+        if user_obj:
+            username = user_obj.username
+
     user = authenticate(username=username, password=password)
-    print(f"Authentication result: {user}")
-    
+
     if user and user.is_active:
-        print(f"User authenticated successfully: {user.username}")
         refresh = RefreshToken.for_user(user)
         return Response({
             'success': True,
@@ -88,8 +61,7 @@ def simple_login(request):
                 'access': str(refresh.access_token),
             }
         })
-    
-    print(f"Login failed for username: '{username}'")
+
     return Response(
         {'success': False, 'message': 'Invalid credentials'},
         status=status.HTTP_401_UNAUTHORIZED
@@ -100,18 +72,23 @@ class UserViewSet(viewsets.ModelViewSet):
     queryset = User.objects.all()
     serializer_class = UserSerializer
     permission_classes = [IsAuthenticated]
-    
+
     def get_permissions(self):
         if self.action in ['create', 'register', 'login', 'request_password_reset', 'reset_password_confirm']:
             return [AllowAny()]
+        # 'me'/'update_me'/'user_settings'/'upload_avatar' declare their own
+        # permission_classes=[IsAuthenticated] on the @action decorator, so
+        # those are unaffected by this. Everything else on this ViewSet is
+        # the raw ModelViewSet CRUD (list/retrieve/update/partial_update/
+        # destroy) operating on ANY user's row — that must be admin-only,
+        # not just "logged in as somebody".
+        if self.action in ['list', 'retrieve', 'update', 'partial_update', 'destroy']:
+            return [IsAuthenticated(), IsAdmin()]
         return [IsAuthenticated()]
     
     @action(detail=False, methods=['post'], permission_classes=[AllowAny])
     def register(self, request):
         """User registration"""
-        print(f"=== REGISTRATION ATTEMPT ===")
-        print(f"Request data: {request.data}")
-        
         serializer = UserRegistrationSerializer(data=request.data)
         if serializer.is_valid():
             user = serializer.save()
@@ -124,8 +101,7 @@ class UserViewSet(viewsets.ModelViewSet):
                     'access': str(refresh.access_token),
                 }
             }, status=status.HTTP_201_CREATED)
-        
-        print(f"Validation errors: {serializer.errors}")
+
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
     
     @action(detail=False, methods=['post'], permission_classes=[AllowAny])

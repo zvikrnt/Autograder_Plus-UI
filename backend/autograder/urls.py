@@ -18,7 +18,8 @@ def api_root(request):
         'message': 'Autograder API',
         'version': '1.0.0',
         'endpoints': {
-            'admin': '/admin/',
+            'django_admin': '/django-admin/',
+            'admin_portal_api': '/api/admin/',
             'auth': {
                 'register': '/api/auth/register/',
                 'login': '/api/auth/login/',
@@ -46,7 +47,9 @@ def api_root(request):
 urlpatterns = [
     path('', api_root, name='api-root'),
     path('api/health/', health, name='health'),
-    path('admin/', admin.site.urls),
+    # Moved off /admin/ so that path is free for the React admin portal SPA
+    # route (served by the frontend, proxied straight through by Nginx).
+    path('django-admin/', admin.site.urls),
     path('api/auth/', include('auth_urls')),
     path('api/users/', include('users.urls')),
     path('api/classes/', include('classes.urls')),
@@ -59,6 +62,7 @@ urlpatterns = [
     path('api/analytics/', include('analytics.urls')),
     path('api/adaptive/', include('adaptive.urls')),
     path('api/blackboard/', include('blackboard.urls')),
+    path('api/admin/', include('adminportal.urls')),
 ]
 
 # Serve media files in development

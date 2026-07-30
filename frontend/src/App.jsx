@@ -30,6 +30,13 @@ import TeacherCalendar from "./pages/teacher/TeacherCalendar";
 import PracticeQuestionManager from "./pages/teacher/PracticeQuestionManager";
 import ClassSettings from "./pages/teacher/ClassSettings";
 import AIAnalysisTasks from "./pages/admin/AIAnalysisTasks";
+import AdminLogin from "./pages/admin/AdminLogin";
+import AdminOverview from "./pages/admin/AdminOverview";
+import AdminUsers from "./pages/admin/AdminUsers";
+import AdminClasses from "./pages/admin/AdminClasses";
+import AdminSystem from "./pages/admin/AdminSystem";
+import AdminMaintenance from "./pages/admin/AdminMaintenance";
+import AdminBackups from "./pages/admin/AdminBackups";
 
 // Student Pages
 import StudentDashboard from "./pages/student/StudentDashboard";
@@ -171,6 +178,60 @@ function App() {
               element={
                 <ProtectedRoute requiredRole={['admin', 'teacher', 'ta']}>
                   <AIAnalysisTasks />
+                </ProtectedRoute>
+              }
+            />
+
+            {/* Admin Portal — no nav entry point anywhere; reachable only by
+                typing the URL. /admin/login is public; every other /admin/*
+                route requires role='admin' (also enforced server-side on
+                every /api/admin/* call). */}
+            <Route path="/admin/login" element={<AdminLogin />} />
+            <Route
+              path="/admin"
+              element={
+                <ProtectedRoute requiredRole={['admin']}>
+                  <AdminOverview />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/admin/users"
+              element={
+                <ProtectedRoute requiredRole={['admin']}>
+                  <AdminUsers />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/admin/classes"
+              element={
+                <ProtectedRoute requiredRole={['admin']}>
+                  <AdminClasses />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/admin/system"
+              element={
+                <ProtectedRoute requiredRole={['admin']}>
+                  <AdminSystem />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/admin/maintenance"
+              element={
+                <ProtectedRoute requiredRole={['admin']}>
+                  <AdminMaintenance />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/admin/backups"
+              element={
+                <ProtectedRoute requiredRole={['admin']}>
+                  <AdminBackups />
                 </ProtectedRoute>
               }
             />

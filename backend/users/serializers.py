@@ -26,6 +26,11 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
     def validate(self, attrs):
         if attrs['password'] != attrs['password2']:
             raise serializers.ValidationError({"password": "Password fields didn't match."})
+        # Self-registration must never be able to grant admin. The 'admin'
+        # role can only be granted by an existing admin, via the admin
+        # portal's user-management endpoints.
+        if attrs.get('role') == 'admin':
+            raise serializers.ValidationError({"role": "Cannot self-register as admin."})
         return attrs
     
     def create(self, validated_data):
